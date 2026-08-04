@@ -1,0 +1,28 @@
+{
+  "name": "vuelos_fids_naabol",
+  "title": "Itinerario de Vuelos de Bolivia",
+  "description": "Itinerarios, salidas, llegadas y estado de vuelos en los aeropuertos de Bolivia reportados por Navegación Aérea y Aeropuertos Bolivianos (NAABOL).",
+  "version": "1.0.0",
+  "owner_org": "mefp-uie",
+  "homepage": "https://fids.naabol.gob.bo/",
+  "keywords": ["vuelos", "aeropuertos", "naabol", "itinerario"],
+  "sources": [
+    {
+      "title": "Navegación Aérea y Aeropuertos Bolivianos (NAABOL)",
+      "path": "https://fids.naabol.gob.bo/"
+    }
+  ],
+  "resources": [
+    {
+      "name": "vuelos_fids_naabol_parquet",
+      "title": "Itinerario de Vuelos de Bolivia (Parquet)",
+      "description": "Itinerarios de vuelos en aeropuertos bolivianos en formato Parquet.",
+      "type": "table",
+      "path": "vuelos_fids_naabol.parquet",
+      "scheme": "file",
+      "format": "parquet",
+      "mediatype": "application/x-parquet",
+      "encoding": "utf-8"
+    }
+  ]
+}

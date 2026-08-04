@@ -1,0 +1,7 @@
+mefp-datos @ git+http://git.repodata.economiayfinanzas.gob.bo/mefp-uie/mefp_datos.git@main
+beautifulsoup4
+openpyxl
+pandas==2.3.3
+requests
+pyarrow
+pandas
