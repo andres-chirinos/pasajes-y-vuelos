@@ -72,6 +72,8 @@ COLUMNAS_ORDEN = [
     "categoria_cabina",
     "detalles_vehiculo",
     "escalas_duracion",
+    "es_escala",
+    "numero_escalas",
     "precio_bob",
     "precio_max_bob",
     "precio_minimo_bob",
@@ -146,8 +148,45 @@ def generar_rutas_flota(ciudades):
                     rutas.append((orig, dest))
     return rutas
 
+CIUDAD_A_IATA = {
+    "LA PAZ": "LPB",
+    "EL ALTO": "LPB",
+    "SANTA CRUZ": "VVI",
+    "COCHABAMBA": "CBB",
+    "SUCRE": "SRE",
+    "TARIJA": "TJA",
+    "TRINIDAD": "TDD",
+    "COBIJA": "CIJ",
+    "UYUNI": "UYU",
+    "ORURO": "ORU",
+    "RIBERALTA": "RIB",
+    "GUAYARAMERIN": "GYA",
+    "YACUIBA": "BYC",
+    "BUENOS AIRES": "EZE",
+    "SAO PAULO": "GRU",
+    "CUIABA": "CGB",
+    "CORDOBA - AR": "COR",
+    "MENDOZA - AR": "MDZ",
+}
 
-def get_flights_data(token, target_date, now_str):
+
+def generar_rutas_vuelos(ciudades):
+    iatas = set(["LPB", "VVI", "CBB", "SRE", "TJA", "TDD", "CIJ", "UYU"])
+    for c in ciudades:
+        c_upper = c.upper().strip()
+        if c_upper in CIUDAD_A_IATA:
+            iatas.add(CIUDAD_A_IATA[c_upper])
+
+    rutas = []
+    lista_iatas = sorted(list(iatas))
+    for orig in lista_iatas:
+        for dest in lista_iatas:
+            if orig != dest:
+                rutas.append((orig, dest))
+    return rutas
+
+
+def get_flights_data(token, target_date, now_str, rutas_vuelos):
     headers = {
         "User-Agent": "Dart/3.8 (dart:io)",
         "Authorization": f"Bearer {token}",
@@ -156,7 +195,7 @@ def get_flights_data(token, target_date, now_str):
         "Content-Type": "application/json",
     }
     rows = []
-    for orig, dest in RUTAS_VUELOS:
+    for orig, dest in rutas_vuelos:
         payload = {
             "adt": 1,
             "chd": 0,
@@ -191,6 +230,31 @@ def get_flights_data(token, target_date, now_str):
                             airline_info = fl.get("airline", {})
                             orig_info = fl.get("airportOrigin", {})
                             dest_info = fl.get("airportDestiny", {})
+                            
+                            connections = fl.get("connections", []) or []
+                            flight_nums = []
+                            intermediate_stops = []
+                            for idx, conn in enumerate(connections):
+                                fn = conn.get("flightNumber")
+                                if fn:
+                                    flight_nums.append(str(fn))
+                                if idx < len(connections) - 1:
+                                    stop_iata = conn.get("destinyAirport", {}).get("iataCode") or conn.get("destinyAirport", {}).get("city")
+                                    if stop_iata:
+                                        intermediate_stops.append(stop_iata)
+                            
+                            flight_no_str = " / ".join(flight_nums) if flight_nums else (fl.get("flightNumber") or "")
+                            num_stops = max(0, len(connections) - 1)
+                            is_stop = num_stops > 0
+                            duration_str = fl.get("duration", "")
+
+                            if is_stop:
+                                stops_desc = f"{num_stops} escala ({', '.join(intermediate_stops)})" if intermediate_stops else f"{num_stops} escala"
+                                if duration_str:
+                                    stops_desc += f" - {duration_str}"
+                            else:
+                                stops_desc = f"Directo ({duration_str})" if duration_str else "Directo"
+
                             rows.append({
                                 "fecha_consulta": now_str,
                                 "tipo_transporte": "VUELO",
@@ -201,12 +265,14 @@ def get_flights_data(token, target_date, now_str):
                                 "destino_nombre": dest_info.get("city", dest),
                                 "empresa_aerolinea": airline_info.get("name", ""),
                                 "codigo_empresa": airline_info.get("iata", ""),
-                                "numero_vuelo_bus": fl.get("flightNumber", "") or "",
+                                "numero_vuelo_bus": flight_no_str,
                                 "fecha_hora_salida": fl.get("departureDatetime", ""),
                                 "fecha_hora_llegada": fl.get("arrivalDatetime", ""),
                                 "categoria_cabina": "ECONOMICA",
                                 "detalles_vehiculo": "AVION",
-                                "escalas_duracion": str(fl.get("numberOfStops", 0)),
+                                "escalas_duracion": stops_desc,
+                                "es_escala": is_stop,
+                                "numero_escalas": num_stops,
                                 "precio_bob": float(price),
                                 "precio_max_bob": float(price),
                                 "precio_minimo_bob": float(price),
@@ -270,7 +336,9 @@ def get_bus_data(token, target_date, now_str, rutas_flota):
                                     "fecha_hora_llegada": item.get("arrivalDate", ""),
                                     "categoria_cabina": item.get("category", "") or "",
                                     "detalles_vehiculo": item.get("typeBus", "") or "",
-                                    "escalas_duracion": f"{hours}h {mins}m",
+                                    "escalas_duracion": f"Directo ({hours}h {mins}m)",
+                                    "es_escala": False,
+                                    "numero_escalas": 0,
                                     "precio_bob": price,
                                     "precio_max_bob": price_max,
                                     "precio_minimo_bob": price_min,
@@ -290,7 +358,8 @@ def get_all_pasajes_data(now):
 
     ciudades = obtener_ciudades(token)
     rutas_flota = generar_rutas_flota(ciudades)
-    logging.info(f"Generadas {len(rutas_flota)} rutas a consultar para flota terrestre.")
+    rutas_vuelos = generar_rutas_vuelos(ciudades)
+    logging.info(f"Generadas {len(rutas_vuelos)} rutas para vuelos y {len(rutas_flota)} rutas para flota terrestre.")
 
     all_rows = []
 
@@ -299,7 +368,7 @@ def get_all_pasajes_data(now):
         target_date = (now + timedelta(days=day_offset)).strftime("%Y-%m-%d")
         logging.info(f"Consultando pasajes para la fecha {target_date}...")
 
-        f_rows = get_flights_data(token, target_date, now_str)
+        f_rows = get_flights_data(token, target_date, now_str, rutas_vuelos)
         b_rows = get_bus_data(token, target_date, now_str, rutas_flota)
 
         logging.info(f"Fecha {target_date}: {len(f_rows)} vuelos, {len(b_rows)} pasajes de flota encontrados.")
@@ -377,7 +446,9 @@ def consolidate(df):
         "origen_codigo",
         "destino_codigo",
         "empresa_aerolinea",
+        "numero_vuelo_bus",
         "fecha_hora_salida",
+        "es_escala",
     ]
     joindf = pd.concat([oldf, df], axis=0, ignore_index=True)
     joindf = joindf.drop_duplicates()
@@ -409,6 +480,9 @@ def actualizar():
     tabla.to_csv(csv_path, index=False)
     logging.info(f"Guardado local CSV: {csv_path} ({len(tabla)} filas)")
 
+    local_parquet = PROJECT_DIR / "vuelos_pasajes.parquet"
+    tabla.to_parquet(local_parquet, index=False)
+
     ruta_salida_parquet = RUTA_SALIDA / "vuelos_pasajes.parquet"
     tabla.to_parquet(ruta_salida_parquet, index=False)
 
@@ -418,6 +492,13 @@ def actualizar():
         index=False,
         columns=[c for c in COLUMNAS_ORDEN if c in tabla.columns],
     )
+
+    # Actualizar dataset JSON para el dashboard estático
+    try:
+        from build_dashboard_dataset import build_dataset
+        build_dataset()
+    except Exception as exc:
+        logging.warning(f"No se pudo actualizar el dataset del dashboard: {exc}")
 
     # Subir información a AIStor
     if mefp_datos and hasattr(mefp_datos, "aistor"):

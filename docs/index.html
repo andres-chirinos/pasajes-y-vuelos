@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interconectividad Aérea y Terrestre - MEFP Bolivia</title>
+  <meta name="description" content="Dashboard estático de monitoreo de interconectividad de aeropuertos, pasajes de flota y vuelos en Bolivia.">
+  
+  <!-- Modern Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- Chart.js CDN for Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">✈️</div>
+      <div class="brand-text">
+        <h1>Interconectividad Bolivia</h1>
+        <p>Red de Transportes: Aeropuertos (FIDS NAABOL) & Flotas Terrestres</p>
+      </div>
+    </div>
+    
+    <div class="header-status">
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span id="data-updated-label">Actualizado: Cargando...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-container">
+
+    <!-- Controls Bar & Date Timeline Filter -->
+    <section class="controls-bar">
+      <div class="filter-group">
+        <div class="filter-item">
+          <label for="date-filter">📅 Fecha de Análisis</label>
+          <select id="date-filter" class="custom-select">
+            <option value="ALL">Todas las Fechas</option>
+          </select>
+        </div>
+        
+        <div class="filter-item">
+          <label for="transport-filter">🚍 Modo Transporte</label>
+          <select id="transport-filter" class="custom-select">
+            <option value="ALL">Todos los Medios</option>
+            <option value="VUELO">Vuelos Aéreos</option>
+            <option value="BUS">Flotas Terrestres</option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label for="origin-filter">📍 Ciudad / Origen</label>
+          <select id="origin-filter" class="custom-select">
+            <option value="ALL">Todos los Orígenes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="segmented-control" role="tablist">
+        <button class="segmented-btn active" data-tab="tab-network">🌐 Red & Grafo</button>
+        <button class="segmented-btn" data-tab="tab-analytics">📊 Línea de Tiempo</button>
+        <button class="segmented-btn" data-tab="tab-fids">🛫 FIDS NAABOL</button>
+        <button class="segmented-btn" data-tab="tab-table">📋 Tabla General</button>
+      </div>
+    </section>
+
+    <!-- KPI Summary Grid -->
+    <section class="kpi-grid">
+      <div class="kpi-card" style="--card-accent: var(--accent-blue);">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Frecuencias / Salidas</span>
+          <span class="kpi-icon">🔄</span>
+        </div>
+        <div class="kpi-value" id="kpi-total-ops">0</div>
+        <div class="kpi-subtext" id="kpi-total-sub">Vuelos y flotas consolidados</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-cyan);">
+        <div class="kpi-header">
+          <span class="kpi-title">Operaciones FIDS NAABOL</span>
+          <span class="kpi-icon">✈️</span>
+        </div>
+        <div class="kpi-value" id="kpi-fids-count">0</div>
+        <div class="kpi-subtext">8 aeropuertos monitoreados</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-amber);">
+        <div class="kpi-header">
+          <span class="kpi-title">Salidas de Flotas</span>
+          <span class="kpi-icon">🚌</span>
+        </div>
+        <div class="kpi-value" id="kpi-bus-count">0</div>
+        <div class="kpi-subtext">Rutas interdepartamentales</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-emerald);">
+        <div class="kpi-header">
+          <span class="kpi-title">Tarifa Prom. Vuelo</span>
+          <span class="kpi-icon">💵</span>
+        </div>
+        <div class="kpi-value" id="kpi-avg-flight-price">Bs. 0</div>
+        <div class="kpi-subtext">Precio promedio pasaje aéreo</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-purple);">
+        <div class="kpi-header">
+          <span class="kpi-title">Tarifa Prom. Flota</span>
+          <span class="kpi-icon">🏷️</span>
+        </div>
+        <div class="kpi-value" id="kpi-avg-bus-price">Bs. 0</div>
+        <div class="kpi-subtext">Precio promedio flota terrestre</div>
+      </div>
+    </section>
+
+    <!-- Tab 1: Red de Interconectividad (Mapa Interactivo) -->
+    <div id="tab-network" class="tab-content">
+      <div class="dashboard-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">🗺️ Mapa de Interconectividad de Bolivia</h2>
+            <span class="badge badge-vuelo" id="nodes-count-badge">0 Nodos Conectados</span>
+          </div>
+          <div class="network-container" id="network-canvas-container">
+            <canvas id="network-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">⭐ Rutas con Mayor Flujo</h2>
+          </div>
+          <div class="table-responsive">
+            <table class="custom-table" id="top-routes-table">
+              <thead>
+                <tr>
+                  <th>Origen</th>
+                  <th>Destino</th>
+                  <th>Tipo</th>
+                  <th>Frec.</th>
+                  <th>Precio Bs.</th>
+                </tr>
+              </thead>
+              <tbody id="top-routes-tbody">
+                <!-- Top routes rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Línea de Tiempo & Analítica de Tarifas -->
+    <div id="tab-analytics" class="tab-content" style="display: none;">
+      <div class="dashboard-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">📈 Línea de Tiempo: Salidas por Día</h2>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="timeline-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">💰 Comparativa de Precios (BOB)</h2>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="prices-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="panel-card" style="grid-column: 1 / -1;">
+          <div class="panel-header">
+            <h2 class="panel-title">🏢 Participación por Empresa / Aerolínea</h2>
+          </div>
+          <div class="chart-wrapper" style="height: 280px;">
+            <canvas id="carriers-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Operaciones FIDS NAABOL -->
+    <div id="tab-fids" class="tab-content" style="display: none;">
+      <div class="dashboard-grid">
+        <div class="panel-card" style="grid-column: 1 / -1;">
+          <div class="panel-header">
+            <h2 class="panel-title">🛫 Estado de Vuelos en Tiempo Real (NAABOL FIDS)</h2>
+            <input type="text" id="fids-search" class="custom-input" placeholder="🔍 Buscar por vuelo, aerolínea o ruta...">
+          </div>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Aeropuerto</th>
+                  <th>Operación</th>
+                  <th>Nro. Vuelo</th>
+                  <th>Aerolínea</th>
+                  <th>Ruta</th>
+                  <th>Hora Prog.</th>
+                  <th>Hora Real</th>
+                  <th>Puerta</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="fids-table-tbody">
+                <!-- FIDS records rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: Tabla General Pasajes -->
+    <div id="tab-table" class="tab-content" style="display: none;">
+      <div class="panel-card table-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">📋 Registro Consolidado de Vuelos y Flotas</h2>
+          <input type="text" id="pasajes-search" class="custom-input" placeholder="🔍 Buscar empresa, origen, destino...">
+        </div>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Fecha Salida</th>
+                <th>Tipo</th>
+                <th>Origen</th>
+                <th>Destino</th>
+                <th>Empresa / Aerolínea</th>
+                <th>Cod. Vuelo / Bus</th>
+                <th>Hora Salida</th>
+                <th>Hora Llegada</th>
+                <th>Precio (BOB)</th>
+                <th>Rango Precio</th>
+              </tr>
+            </thead>
+            <tbody id="pasajes-table-tbody">
+              <!-- Pasajes records rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>Ministerio de Economía y Finanzas Públicas (MEFP) &bull; Datalake & Analytics Node</p>
+    <p>Actualización automática cada 4 horas vía GitHub Actions & AIStor / CKAN Datalake</p>
+  </footer>
+
+  <!-- Main Dashboard Script -->
+  <script src="app.js"></script>
+</body>
+</html>

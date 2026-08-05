@@ -31,3 +31,12 @@ jobs:
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
         run: |
           python update/fetch_pasajes.py
+          python update/build_dashboard_dataset.py
+
+      - name: Commit and push updated static dashboard data
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          git add docs/data_dashboard.json vuelos_pasajes.parquet vuelos_pasajes.csv || true
+          git diff --quiet && git diff --staged --quiet || (git commit -m "auto: update transport interconnectivity dashboard data [skip ci]" && git push origin main)
+

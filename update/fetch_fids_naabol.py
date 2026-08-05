@@ -209,6 +209,9 @@ def actualizar():
     tabla.to_csv(csv_path, index=False)
     logging.info(f"Guardado local CSV: {csv_path} ({len(tabla)} filas)")
 
+    local_parquet = PROJECT_DIR / "vuelos_fids_naabol.parquet"
+    tabla.to_parquet(local_parquet, index=False)
+
     ruta_salida_parquet = RUTA_SALIDA / "vuelos_fids_naabol.parquet"
     tabla.to_parquet(ruta_salida_parquet, index=False)
 
@@ -218,6 +221,13 @@ def actualizar():
         index=False,
         columns=[c for c in COLUMNAS_ORDEN if c in tabla.columns],
     )
+
+    # Actualizar dataset JSON para el dashboard estático
+    try:
+        from build_dashboard_dataset import build_dataset
+        build_dataset()
+    except Exception as exc:
+        logging.warning(f"No se pudo actualizar el dataset del dashboard: {exc}")
 
     # Subir información a AIStor
     if mefp_datos and hasattr(mefp_datos, "aistor"):
