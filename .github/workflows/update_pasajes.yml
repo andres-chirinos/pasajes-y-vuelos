@@ -1,13 +1,13 @@
-name: Update data
+name: Update pasajes data
 
 on:
   schedule:
-    - cron: "12 7 * * *"
+    - cron: "0 */4 * * *"
   workflow_dispatch:
 
 jobs:
   update:
-    name: update data
+    name: update pasajes data
     runs-on: ubuntu-node
     steps:
       - name: Checkout
@@ -30,4 +30,4 @@ jobs:
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
         run: |
-          python update/fetch_fids_naabol.py
+          python update/fetch_pasajes.py

@@ -23,6 +23,17 @@
       "format": "parquet",
       "mediatype": "application/x-parquet",
       "encoding": "utf-8"
+    },
+    {
+      "name": "vuelos_pasajes",
+      "title": "Disponibilidad de Vuelos y Pasajes de Flotas (Parquet)",
+      "description": "Pasajes y itinerarios de pasajes aéreos y terrestres en Bolivia.",
+      "type": "table",
+      "path": "vuelos_pasajes.parquet",
+      "scheme": "file",
+      "format": "parquet",
+      "mediatype": "application/x-parquet",
+      "encoding": "utf-8"
     }
   ]
 }
