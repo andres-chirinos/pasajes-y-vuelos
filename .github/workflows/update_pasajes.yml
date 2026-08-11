@@ -2,7 +2,7 @@ name: Update pasajes data
 
 on:
   schedule:
-    - cron: "0 */4 * * *"
+    - cron: "9 8,12 * * *"
   workflow_dispatch:
 
 jobs:
@@ -31,5 +31,3 @@ jobs:
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
         run: |
           python update/fetch_pasajes.py
-
-
