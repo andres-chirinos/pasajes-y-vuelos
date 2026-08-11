@@ -1,0 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches and environments
+.pytest_cache/
+.env
+.venv/
+env/
+venv/
+
+# Raw network captures
+*.har
+
+# Extracted data files and temporary files
+*.parquet
+*.csv
+*.xlsx
+*.part
+docs/data_dashboard.json

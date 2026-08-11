@@ -69,6 +69,7 @@ function initFilterEvents() {
   document.getElementById("date-filter").addEventListener("change", applyFilters);
   document.getElementById("transport-filter").addEventListener("change", applyFilters);
   document.getElementById("origin-filter").addEventListener("change", applyFilters);
+  document.getElementById("escalas-filter")?.addEventListener("change", applyFilters);
   
   document.getElementById("fids-search")?.addEventListener("input", renderFidsTable);
   document.getElementById("pasajes-search")?.addEventListener("input", renderPasajesTable);
@@ -139,13 +140,23 @@ function applyFilters() {
   const selectedDate = document.getElementById("date-filter").value;
   const selectedTransport = document.getElementById("transport-filter").value;
   const selectedOrigin = document.getElementById("origin-filter").value;
+  const selectedEscala = document.getElementById("escalas-filter")?.value || "ALL";
 
   // Filter pasajes
   filteredPasajes = (rawData.pasajes || []).filter(p => {
     const matchDate = selectedDate === "ALL" || p.fecha_salida === selectedDate;
     const matchTransport = selectedTransport === "ALL" || p.tipo_transporte === selectedTransport;
     const matchOrigin = selectedOrigin === "ALL" || (p.origen_nombre && p.origen_nombre.toUpperCase().includes(selectedOrigin));
-    return matchDate && matchTransport && matchOrigin;
+    
+    const isEscalaBool = (p.es_escala === true || p.es_escala === "True" || p.es_escala === "true" || parseInt(p.numero_escalas) > 0);
+    let matchEscala = true;
+    if (selectedEscala === "DIRECTO") {
+      matchEscala = !isEscalaBool;
+    } else if (selectedEscala === "ESCALA") {
+      matchEscala = isEscalaBool;
+    }
+
+    return matchDate && matchTransport && matchOrigin && matchEscala;
   });
 
   // Filter FIDS
@@ -541,7 +552,7 @@ function renderPasajesTable() {
   tbody.innerHTML = "";
 
   if (records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No se encontraron registros de pasajes</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;">No se encontraron registros de pasajes</td></tr>';
     return;
   }
 
@@ -549,6 +560,12 @@ function renderPasajesTable() {
     const tr = document.createElement("tr");
     const badgeClass = p.tipo_transporte === "VUELO" ? "badge-vuelo" : "badge-bus";
     const price = parseFloat(p.precio_bob) || 0;
+    
+    const isEscalaBool = (p.es_escala === true || p.es_escala === "True" || p.es_escala === "true" || parseInt(p.numero_escalas) > 0);
+    const escalaText = p.escalas_duracion || (isEscalaBool ? "Con Escala" : "Directo");
+    const escalaBadge = isEscalaBool 
+      ? `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);">${escalaText}</span>`
+      : `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3);">${escalaText}</span>`;
 
     tr.innerHTML = `
       <td>${p.fecha_salida}</td>
@@ -559,6 +576,7 @@ function renderPasajesTable() {
       <td><code>${p.numero_vuelo_bus || '-'}</code></td>
       <td>${p.fecha_hora_salida || '-'}</td>
       <td>${p.fecha_hora_llegada || '-'}</td>
+      <td>${escalaBadge}</td>
       <td><span class="price-tag">Bs. ${price.toFixed(0)}</span></td>
       <td>Bs. ${p.precio_minimo_bob || price} - ${p.precio_max_bob || price}</td>
     `;

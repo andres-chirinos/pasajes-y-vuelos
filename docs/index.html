@@ -65,6 +65,15 @@
             <option value="ALL">Todos los Orígenes</option>
           </select>
         </div>
+
+        <div class="filter-item">
+          <label for="escalas-filter">🔄 Tipo de Ruta</label>
+          <select id="escalas-filter" class="custom-select">
+            <option value="ALL">Todas (Directo y Escalas)</option>
+            <option value="DIRECTO">Solo Vuelos/Viajes Directos</option>
+            <option value="ESCALA">Solo Con Escala(s)</option>
+          </select>
+        </div>
       </div>
 
       <div class="segmented-control" role="tablist">
@@ -243,6 +252,7 @@
                 <th>Cod. Vuelo / Bus</th>
                 <th>Hora Salida</th>
                 <th>Hora Llegada</th>
+                <th>Escalas / Duración</th>
                 <th>Precio (BOB)</th>
                 <th>Rango Precio</th>
               </tr>

@@ -404,7 +404,6 @@ def format_columns(df):
 
 def consolidate(df):
     logging.info("Consolidando eventos de pasajes y vuelos...")
-    csv_path = PROJECT_DIR / "vuelos_pasajes.csv"
     oldf = pd.DataFrame(columns=COLUMNAS_ORDEN)
 
     # Intentar descargar versión previa desde CKAN
@@ -412,8 +411,8 @@ def consolidate(df):
         try:
             ruta_guardado = RUTA_SALIDA / "vuelos_pasajes_guardado.parquet"
             descargar_recurso(
-                "vuelos_pasajes",
-                "vuelos_pasajes_parquet",
+                "vuelos",
+                "vuelos_pasajes.parquet",
                 path=ruta_guardado,
                 sobrescribir=True,
             )
@@ -422,7 +421,7 @@ def consolidate(df):
         except Exception as exc:
             logging.info(f"No se pudo descargar recurso previo desde CKAN: {exc}")
 
-    # Fallback a AIStor o local csv
+    # Fallback a AIStor o local parquet/csv
     if oldf.empty and mefp_datos and hasattr(mefp_datos, "aistor"):
         try:
             ruta_base = mefp_datos.aistor.repo_prefix()
@@ -434,8 +433,12 @@ def consolidate(df):
         except Exception as exc:
             logging.warning(f"No se pudo consultar AIStor: {exc}")
 
-    if oldf.empty and csv_path.exists():
-        oldf = pd.read_csv(csv_path, na_filter=False)
+    local_parquet = PROJECT_DIR / "vuelos_pasajes.parquet"
+    if oldf.empty and local_parquet.exists():
+        try:
+            oldf = pd.read_parquet(local_parquet)
+        except Exception:
+            pass
 
     oldf = format_columns(oldf)
     df = format_columns(df)
@@ -476,13 +479,6 @@ def actualizar():
     data = get_all_pasajes_data(now)
     tabla = consolidate(data)
 
-    csv_path = PROJECT_DIR / "vuelos_pasajes.csv"
-    tabla.to_csv(csv_path, index=False)
-    logging.info(f"Guardado local CSV: {csv_path} ({len(tabla)} filas)")
-
-    local_parquet = PROJECT_DIR / "vuelos_pasajes.parquet"
-    tabla.to_parquet(local_parquet, index=False)
-
     ruta_salida_parquet = RUTA_SALIDA / "vuelos_pasajes.parquet"
     tabla.to_parquet(ruta_salida_parquet, index=False)
 
@@ -493,7 +489,7 @@ def actualizar():
         columns=[c for c in COLUMNAS_ORDEN if c in tabla.columns],
     )
 
-    # Actualizar dataset JSON para el dashboard estático
+    # Actualizar dataset JSON para el dashboard estático si está presente
     try:
         from build_dashboard_dataset import build_dataset
         build_dataset()
