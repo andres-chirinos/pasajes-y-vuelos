@@ -26,3 +26,28 @@ jobs:
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
         run: |
           python update/fetch_fids_naabol.py
+
+  publish_pages:
+    name: Publish Dashboard
+    needs: update
+    runs-on: ubuntu-node
+    steps:
+      - name: Clone repo
+        run: |
+          git clone --depth 1 -b main http://git.repodata.economiayfinanzas.gob.bo/mefp-uie/vuelos.git .
+
+      - name: Build Dashboard Dataset
+        run: |
+          python -m pip install -r update/requirements.txt
+          python update/build_dashboard_dataset.py
+
+      - name: Temporary hosts entry for git-pages
+        run: |
+          echo "172.20.249.55 pages.repodata.economiayfinanzas.gob.bo" >> /etc/hosts
+
+      - name: Publish to git-pages
+        uses: https://codeberg.org/git-pages/action@v2
+        with:
+          site: "http://pages.repodata.economiayfinanzas.gob.bo/mefp-uie/vuelos/"
+          token: ${{ forge.token }}
+          source: docs
