@@ -16,7 +16,7 @@ jobs:
 
       - name: install python and dependencies
         run: |
-          python3 -m pip install --break-system-packages --upgrade pip
+          apt-get update && apt-get install -y python3-pip
           python3 -m pip install --break-system-packages -r update/requirements.txt
 
       - name: run update script
@@ -40,6 +40,7 @@ jobs:
 
       - name: Build Dashboard Dataset
         run: |
+          apt-get update && apt-get install -y python3-pip
           python3 -m pip install --break-system-packages -r update/requirements.txt
           python3 update/build_dashboard_dataset.py
 
