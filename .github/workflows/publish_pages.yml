@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Clone repo
         run: |
-          git clone --depth 1 -b main http://git.repodata.economiayfinanzas.gob.bo/mefp-uie/vuelos.git .
+          git clone --depth 1 -b main http://oauth2:${{ secrets.FORGE_TOKEN }}@git.repodata.economiayfinanzas.gob.bo/mefp-uie/vuelos.git .
 
       - name: Build Dashboard Dataset
         run: |
@@ -28,7 +28,7 @@ jobs:
           echo "172.20.249.55 pages.repodata.economiayfinanzas.gob.bo" >> /etc/hosts
 
       - name: Publish to git-pages
-        uses: https://codeberg.org/git-pages/action@v2
+        uses: http://git.repodata.economiayfinanzas.gob.bo/mefp-uie/git-pages-action@v2
         with:
           site: "http://pages.repodata.economiayfinanzas.gob.bo/mefp-uie/vuelos/"
           token: ${{ forge.token }}
