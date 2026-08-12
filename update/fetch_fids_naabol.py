@@ -39,6 +39,7 @@ SESSION_URL = "https://fids.naabol.gob.bo/"
 BASE_URL = "https://fids.naabol.gob.bo/Fids/itin/vuelos"
 RUTA_SALIDA = Path("/tmp")
 MAX_FETCH_ATTEMPTS = 3
+REQUEST_TIMEOUT = 30  # Timeout en segundos para requests HTTP
 
 COLUMNAS_ORDEN = [
     "fecha_consulta",
@@ -74,7 +75,7 @@ session.verify = False
 def init_session():
     try:
         logging.info("Obteniendo cookies de https://fids.naabol.gob.bo/...")
-        res = session.get(SESSION_URL, timeout=15)
+        res = session.get(SESSION_URL, timeout=REQUEST_TIMEOUT)
         logging.info(f"Cookies obtenidas: {list(session.cookies.keys())}")
     except Exception as exc:
         logging.warning(f"No se pudieron obtener cookies iniciales: {exc}")
@@ -85,7 +86,7 @@ def _get_data(aero, tipo, now_str):
     last_error = None
     for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
         try:
-            response = session.get(BASE_URL, params=params, timeout=10)
+            response = session.get(BASE_URL, params=params, timeout=REQUEST_TIMEOUT)
             if response.status_code == 200:
                 items = response.json()
                 if isinstance(items, list):

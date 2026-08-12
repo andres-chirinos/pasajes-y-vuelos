@@ -40,6 +40,7 @@ BUS_WINDOWS_URL = "https://tsag.transclicksolutions.com/sl/api/v1/departures/win
 RUTA_SALIDA = Path("/tmp")
 MAX_FETCH_ATTEMPTS = 3
 REQUEST_DELAY = 0.3  # Pausa en segundos para evitar rate limits
+REQUEST_TIMEOUT = 30  # Timeout en segundos para requests HTTP
 
 # Tarifas Máximas de Referencia (TMR) - Transporte Aéreo Doméstico de Pasajeros (En Bs.)
 TARIFAS_REFERENCIA_VUELOS = {
@@ -175,7 +176,7 @@ def obtener_token():
     )
     for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
         try:
-            res = session.post(AUTH_URL, headers=headers_auth, data=data_auth, timeout=15)
+            res = session.post(AUTH_URL, headers=headers_auth, data=data_auth, timeout=REQUEST_TIMEOUT)
             if res.status_code == 200:
                 token = res.json().get("access_token")
                 logging.info("Token de acceso obtenido exitosamente.")
@@ -217,7 +218,7 @@ def get_flights_data(token, target_date, now_str, rutas_vuelos):
         for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
             try:
                 time.sleep(REQUEST_DELAY)
-                res = session.post(FLIGHTS_URL, json=payload, headers=headers, timeout=15)
+                res = session.post(FLIGHTS_URL, json=payload, headers=headers, timeout=REQUEST_TIMEOUT)
                 if res.status_code == 429:
                     logging.warning("Rate limit (429) detectado en vuelos, pausando 5s...")
                     time.sleep(5)
@@ -308,7 +309,7 @@ def get_bus_data(token, target_date, now_str, rutas_flota):
             for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
                 try:
                     time.sleep(REQUEST_DELAY)
-                    res = session.get(url_endpoint, params=params, headers=headers, timeout=15)
+                    res = session.get(url_endpoint, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
                     if res.status_code == 429:
                         logging.warning("Rate limit (429) detectado en flota, pausando 5s...")
                         time.sleep(5)
