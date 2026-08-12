@@ -41,20 +41,99 @@ RUTA_SALIDA = Path("/tmp")
 MAX_FETCH_ATTEMPTS = 3
 REQUEST_DELAY = 0.3  # Pausa en segundos para evitar rate limits
 
-RUTAS_VUELOS = [
-    ("LPB", "VVI"),
-    ("LPB", "CBB"),
-    ("LPB", "TJA"),
-    ("LPB", "SRE"),
-    ("LPB", "TDD"),
-    ("LPB", "CIJ"),
-    ("VVI", "LPB"),
-    ("VVI", "CBB"),
-    ("VVI", "SRE"),
-    ("SRE", "LPB"),
-    ("CBB", "LPB"),
-    ("TJA", "LPB"),
+# Tarifas Máximas de Referencia (TMR) - Transporte Aéreo Doméstico de Pasajeros (En Bs.)
+TARIFAS_REFERENCIA_VUELOS = {
+    ("LPB", "CBB"): {"origen": "La Paz", "destino": "Cochabamba", "tmr": 539.0, "dua": 15.0, "valor_billete": 554.0},
+    ("CBB", "LPB"): {"origen": "Cochabamba", "destino": "La Paz", "tmr": 539.0, "dua": 15.0, "valor_billete": 554.0},
+    ("LPB", "VVI"): {"origen": "La Paz", "destino": "Santa Cruz", "tmr": 1103.0, "dua": 15.0, "valor_billete": 1118.0},
+    ("VVI", "LPB"): {"origen": "Santa Cruz", "destino": "La Paz", "tmr": 1103.0, "dua": 15.0, "valor_billete": 1118.0},
+    ("CBB", "VVI"): {"origen": "Cochabamba", "destino": "Santa Cruz", "tmr": 698.0, "dua": 15.0, "valor_billete": 713.0},
+    ("VVI", "CBB"): {"origen": "Santa Cruz", "destino": "Cochabamba", "tmr": 698.0, "dua": 15.0, "valor_billete": 713.0},
+    ("LPB", "SRE"): {"origen": "La Paz", "destino": "Sucre", "tmr": 773.0, "dua": 15.0, "valor_billete": 788.0},
+    ("SRE", "LPB"): {"origen": "Sucre", "destino": "La Paz", "tmr": 773.0, "dua": 15.0, "valor_billete": 788.0},
+    ("LPB", "TJA"): {"origen": "La Paz", "destino": "Tarija", "tmr": 1143.0, "dua": 15.0, "valor_billete": 1158.0},
+    ("TJA", "LPB"): {"origen": "Tarija", "destino": "La Paz", "tmr": 1143.0, "dua": 15.0, "valor_billete": 1158.0},
+    ("SRE", "VVI"): {"origen": "Sucre", "destino": "Santa Cruz", "tmr": 566.0, "dua": 15.0, "valor_billete": 581.0},
+    ("VVI", "SRE"): {"origen": "Santa Cruz", "destino": "Sucre", "tmr": 566.0, "dua": 15.0, "valor_billete": 581.0},
+    ("TJA", "VVI"): {"origen": "Tarija", "destino": "Santa Cruz", "tmr": 948.0, "dua": 15.0, "valor_billete": 963.0},
+    ("VVI", "TJA"): {"origen": "Santa Cruz", "destino": "Tarija", "tmr": 948.0, "dua": 15.0, "valor_billete": 963.0},
+    ("LPB", "TDD"): {"origen": "La Paz", "destino": "Trinidad", "tmr": 1340.0, "dua": 15.0, "valor_billete": 1355.0},
+    ("TDD", "LPB"): {"origen": "Trinidad", "destino": "La Paz", "tmr": 1340.0, "dua": 15.0, "valor_billete": 1355.0},
+    ("TDD", "VVI"): {"origen": "Trinidad", "destino": "Santa Cruz", "tmr": 1186.0, "dua": 15.0, "valor_billete": 1201.0},
+    ("VVI", "TDD"): {"origen": "Santa Cruz", "destino": "Trinidad", "tmr": 1186.0, "dua": 15.0, "valor_billete": 1201.0},
+    ("LPB", "RBQ"): {"origen": "La Paz", "destino": "Rurrenabaque", "tmr": 918.0, "dua": 15.0, "valor_billete": 933.0},
+    ("RBQ", "LPB"): {"origen": "Rurrenabaque", "destino": "La Paz", "tmr": 918.0, "dua": 15.0, "valor_billete": 933.0},
+    ("LPB", "CIJ"): {"origen": "La Paz", "destino": "Cobija", "tmr": 1537.0, "dua": 15.0, "valor_billete": 1552.0},
+    ("CIJ", "LPB"): {"origen": "Cobija", "destino": "La Paz", "tmr": 1537.0, "dua": 15.0, "valor_billete": 1552.0},
+    ("CBB", "TJA"): {"origen": "Cochabamba", "destino": "Tarija", "tmr": 862.0, "dua": 15.0, "valor_billete": 877.0},
+    ("TJA", "CBB"): {"origen": "Tarija", "destino": "Cochabamba", "tmr": 862.0, "dua": 15.0, "valor_billete": 877.0},
+    ("CBB", "SRE"): {"origen": "Cochabamba", "destino": "Sucre", "tmr": 524.0, "dua": 15.0, "valor_billete": 539.0},
+    ("SRE", "CBB"): {"origen": "Sucre", "destino": "Cochabamba", "tmr": 524.0, "dua": 15.0, "valor_billete": 539.0},
+    ("CBB", "TDD"): {"origen": "Cochabamba", "destino": "Trinidad", "tmr": 639.0, "dua": 15.0, "valor_billete": 654.0},
+    ("TDD", "CBB"): {"origen": "Trinidad", "destino": "Cochabamba", "tmr": 639.0, "dua": 15.0, "valor_billete": 654.0},
+    ("SRE", "TJA"): {"origen": "Sucre", "destino": "Tarija", "tmr": 578.0, "dua": 15.0, "valor_billete": 593.0},
+    ("TJA", "SRE"): {"origen": "Tarija", "destino": "Sucre", "tmr": 578.0, "dua": 15.0, "valor_billete": 593.0},
+    ("LPB", "PSZ"): {"origen": "La Paz", "destino": "Puerto Suarez", "tmr": 1653.0, "dua": 15.0, "valor_billete": 1668.0},
+    ("PSZ", "LPB"): {"origen": "Puerto Suarez", "destino": "La Paz", "tmr": 1653.0, "dua": 15.0, "valor_billete": 1668.0},
+    ("CBB", "PSZ"): {"origen": "Cochabamba", "destino": "Puerto Suarez", "tmr": 521.0, "dua": 15.0, "valor_billete": 536.0},
+    ("PSZ", "CBB"): {"origen": "Puerto Suarez", "destino": "Cochabamba", "tmr": 521.0, "dua": 15.0, "valor_billete": 536.0},
+    ("LPB", "UYU"): {"origen": "La Paz", "destino": "Uyuni", "tmr": 1430.0, "dua": 15.0, "valor_billete": 1445.0},
+    ("UYU", "LPB"): {"origen": "Uyuni", "destino": "La Paz", "tmr": 1430.0, "dua": 15.0, "valor_billete": 1445.0},
+    ("ORU", "VVI"): {"origen": "Oruro", "destino": "Santa Cruz", "tmr": 972.0, "dua": 15.0, "valor_billete": 987.0},
+    ("VVI", "ORU"): {"origen": "Santa Cruz", "destino": "Oruro", "tmr": 972.0, "dua": 15.0, "valor_billete": 987.0},
+    ("CBB", "ORU"): {"origen": "Cochabamba", "destino": "Oruro", "tmr": 582.0, "dua": 15.0, "valor_billete": 597.0},
+    ("ORU", "CBB"): {"origen": "Oruro", "destino": "Cochabamba", "tmr": 582.0, "dua": 15.0, "valor_billete": 597.0},
+    ("TDD", "RIB"): {"origen": "Trinidad", "destino": "Riberalta", "tmr": 1005.0, "dua": 15.0, "valor_billete": 1020.0},
+    ("RIB", "TDD"): {"origen": "Riberalta", "destino": "Trinidad", "tmr": 1005.0, "dua": 15.0, "valor_billete": 1020.0},
+    ("TDD", "GYA"): {"origen": "Trinidad", "destino": "Guayaramerín", "tmr": 989.0, "dua": 15.0, "valor_billete": 1004.0},
+    ("GYA", "TDD"): {"origen": "Guayaramerín", "destino": "Trinidad", "tmr": 989.0, "dua": 15.0, "valor_billete": 1004.0},
+}
+
+# ATT-DJ-RAR-TR LP 32 2025 - Banda Tarifaria Transporte Terrestre Interdepartamental
+BANDAS_TARIFARIAS_BUSES = [
+    {"origen": "COCHABAMBA", "destino": "SANTA CRUZ", "detalle": "nueva carretera (n)", "normal": (70, 90), "semicama": (92, 125), "cama": (148, 183)},
+    {"origen": "COCHABAMBA", "destino": "SANTA CRUZ", "detalle": "carretera antigua (a)", "normal": (87, 106), "semicama": (106, 143), "cama": (162, 207)},
+    {"origen": "COCHABAMBA", "destino": "ORURO", "detalle": "", "normal": (29, 43), "semicama": (36, 56), "cama": (85, 95)},
+    {"origen": "COCHABAMBA", "destino": "SUCRE", "detalle": "", "normal": (67, 94), "semicama": (78, 123), "cama": (148, 192)},
+    {"origen": "COCHABAMBA", "destino": "POTOSI", "detalle": "", "normal": (67, 87), "semicama": (106, 129), "cama": (162, 186)},
+    {"origen": "COCHABAMBA", "destino": "TARIJA", "detalle": "", "normal": (155, 183), "semicama": (190, 246), "cama": (288, 358)},
+    {"origen": "COCHABAMBA", "destino": "UYUNI", "detalle": "", "normal": (95, 140), "semicama": (141, 203), "cama": (211, 291)},
+    {"origen": "LA PAZ", "destino": "ORURO", "detalle": "", "normal": (27, 39), "semicama": (36, 53), "cama": (78, 85)},
+    {"origen": "LA PAZ", "destino": "COCHABAMBA", "detalle": "", "normal": (55, 73), "semicama": (78, 102), "cama": (120, 148)},
+    {"origen": "LA PAZ", "destino": "SANTA CRUZ", "detalle": "nueva carretera (n)", "normal": (113, 153), "semicama": (176, 224), "cama": (232, 308)},
+    {"origen": "LA PAZ", "destino": "SANTA CRUZ", "detalle": "carretera antigua (a)", "normal": (127, 161), "semicama": (190, 234), "cama": (246, 319)},
+    {"origen": "LA PAZ", "destino": "POTOSI", "detalle": "", "normal": (67, 88), "semicama": (106, 129), "cama": (148, 181)},
+    {"origen": "LA PAZ", "destino": "SUCRE", "detalle": "", "normal": (91, 126), "semicama": (120, 175), "cama": (183, 252)},
+    {"origen": "LA PAZ", "destino": "TARIJA", "detalle": "", "normal": (155, 185), "semicama": (190, 248), "cama": (295, 363)},
+    {"origen": "LA PAZ", "destino": "VILLAZON", "detalle": "", "normal": (155, 185), "semicama": (190, 248), "cama": (274, 351)},
+    {"origen": "LA PAZ", "destino": "UYUNI", "detalle": "", "normal": (95, 133), "semicama": (140, 192), "cama": (211, 276)},
+    {"origen": "ORURO", "destino": "POTOSI", "detalle": "", "normal": (38, 53), "semicama": (57, 74), "cama": (85, 105)},
+    {"origen": "ORURO", "destino": "SUCRE", "detalle": "", "normal": (64, 88), "semicama": (78, 118), "cama": (127, 175)},
+    {"origen": "ORURO", "destino": "UYUNI", "detalle": "", "normal": (55, 69), "semicama": (98, 106), "cama": (148, 154)},
+    {"origen": "ORURO", "destino": "VILLAZON", "detalle": "", "normal": (115, 143), "semicama": (0, 0), "cama": (0, 0)},
+    {"origen": "ORURO", "destino": "TARIJA", "detalle": "", "normal": (118, 144), "semicama": (0, 0), "cama": (0, 0)},
+    {"origen": "POTOSI", "destino": "SUCRE", "detalle": "", "normal": (18, 29), "semicama": (29, 43), "cama": (43, 60)},
+    {"origen": "POTOSI", "destino": "TARIJA", "detalle": "", "normal": (78, 102), "semicama": (92, 134), "cama": (127, 186)},
+    {"origen": "SANTA CRUZ", "destino": "TRINIDAD", "detalle": "", "normal": (69, 87), "semicama": (106, 127), "cama": (169, 188)},
+    {"origen": "SANTA CRUZ", "destino": "YACUIBA", "detalle": "", "normal": (66, 85), "semicama": (106, 127), "cama": (148, 176)},
+    {"origen": "SANTA CRUZ", "destino": "SUCRE", "detalle": "", "normal": (106, 134), "semicama": (120, 176), "cama": (148, 238)},
+    {"origen": "SANTA CRUZ", "destino": "TARIJA", "detalle": "", "normal": (143, 183), "semicama": (211, 266), "cama": (258, 356)},
+    {"origen": "SUCRE", "destino": "UYUNI", "detalle": "", "normal": (64, 83), "semicama": (92, 116), "cama": (141, 167)},
+    {"origen": "TARIJA", "destino": "VILLAZON", "detalle": "", "normal": (52, 63), "semicama": (0, 0), "cama": (0, 0)},
+    {"origen": "TARIJA", "destino": "SUCRE", "detalle": "", "normal": (111, 139), "semicama": (0, 0), "cama": (0, 0)},
 ]
+
+def obtener_rutas_flota():
+    rutas = set()
+    for b in BANDAS_TARIFARIAS_BUSES:
+        orig = b["origen"].strip().upper()
+        dest = b["destino"].strip().upper()
+        rutas.add((orig, dest))
+        rutas.add((dest, orig))
+    return sorted(list(rutas))
+
+RUTAS_VUELOS = list(TARIFAS_REFERENCIA_VUELOS.keys())
+RUTAS_FLOTA = obtener_rutas_flota()
 
 COLUMNAS_ORDEN = [
     "fecha_consulta",
@@ -106,84 +185,6 @@ def obtener_token():
             time.sleep(2)
     logging.error("No se pudo obtener el token de autenticación.")
     return None
-
-
-def obtener_ciudades(token):
-    headers = {
-        "User-Agent": "Dart/3.8 (dart:io)",
-        "Authorization": f"Bearer {token}",
-        "Access": token,
-        "AuthorizationBasic": "bW9iaWxlX3RvZG9fcGFzYWplOnRjc19tMGIxbDNfdDBkMF9wNHM0ajM=",
-    }
-    for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
-        try:
-            res = session.get(CITIES_URL, headers=headers, timeout=15)
-            if res.status_code == 200:
-                items = res.json()
-                ciudades = sorted(list(set(c.get("city", "").strip() for c in items if c.get("city"))))
-                logging.info(f"Se obtuvieron {len(ciudades)} ciudades de la API: {ciudades}")
-                return ciudades
-        except Exception as exc:
-            logging.warning(f"Intento {attempt} de obtener ciudades falló: {exc}")
-            time.sleep(2)
-    return [
-        "LA PAZ", "EL ALTO", "SANTA CRUZ", "COCHABAMBA", "SUCRE", "TARIJA",
-        "ORURO", "POTOSI", "BENI", "COBIJA", "TRINIDAD", "UYUNI", "VILLAZON",
-        "YACUIBA", "RIBERALTA", "GUAYARAMERIN", "DESAGUADERO", "CAMARGO"
-    ]
-
-
-def generar_rutas_flota(ciudades):
-    # Ciudades principales de origen frecuente
-    origenes_principales = {
-        "LA PAZ", "EL ALTO", "SANTA CRUZ", "COCHABAMBA", "SUCRE", "TARIJA",
-        "ORURO", "POTOSI", "TRINIDAD", "COBIJA", "UYUNI", "VILLAZON",
-        "YACUIBA", "RIBERALTA", "GUAYARAMERIN", "DESAGUADERO", "CAMARGO"
-    }
-    rutas = []
-    for orig in ciudades:
-        if orig in origenes_principales:
-            for dest in ciudades:
-                if orig != dest:
-                    rutas.append((orig, dest))
-    return rutas
-
-CIUDAD_A_IATA = {
-    "LA PAZ": "LPB",
-    "EL ALTO": "LPB",
-    "SANTA CRUZ": "VVI",
-    "COCHABAMBA": "CBB",
-    "SUCRE": "SRE",
-    "TARIJA": "TJA",
-    "TRINIDAD": "TDD",
-    "COBIJA": "CIJ",
-    "UYUNI": "UYU",
-    "ORURO": "ORU",
-    "RIBERALTA": "RIB",
-    "GUAYARAMERIN": "GYA",
-    "YACUIBA": "BYC",
-    "BUENOS AIRES": "EZE",
-    "SAO PAULO": "GRU",
-    "CUIABA": "CGB",
-    "CORDOBA - AR": "COR",
-    "MENDOZA - AR": "MDZ",
-}
-
-
-def generar_rutas_vuelos(ciudades):
-    iatas = set(["LPB", "VVI", "CBB", "SRE", "TJA", "TDD", "CIJ", "UYU"])
-    for c in ciudades:
-        c_upper = c.upper().strip()
-        if c_upper in CIUDAD_A_IATA:
-            iatas.add(CIUDAD_A_IATA[c_upper])
-
-    rutas = []
-    lista_iatas = sorted(list(iatas))
-    for orig in lista_iatas:
-        for dest in lista_iatas:
-            if orig != dest:
-                rutas.append((orig, dest))
-    return rutas
 
 
 def get_flights_data(token, target_date, now_str, rutas_vuelos):
@@ -356,10 +357,7 @@ def get_all_pasajes_data(now):
     if not token:
         return pd.DataFrame(columns=COLUMNAS_ORDEN)
 
-    ciudades = obtener_ciudades(token)
-    rutas_flota = generar_rutas_flota(ciudades)
-    rutas_vuelos = generar_rutas_vuelos(ciudades)
-    logging.info(f"Generadas {len(rutas_vuelos)} rutas para vuelos y {len(rutas_flota)} rutas para flota terrestre.")
+    logging.info(f"Rutas predefinidas: {len(RUTAS_VUELOS)} rutas de vuelo y {len(RUTAS_FLOTA)} rutas de flota terrestre.")
 
     all_rows = []
 
@@ -368,8 +366,8 @@ def get_all_pasajes_data(now):
         target_date = (now + timedelta(days=day_offset)).strftime("%Y-%m-%d")
         logging.info(f"Consultando pasajes para la fecha {target_date}...")
 
-        f_rows = get_flights_data(token, target_date, now_str, rutas_vuelos)
-        b_rows = get_bus_data(token, target_date, now_str, rutas_flota)
+        f_rows = get_flights_data(token, target_date, now_str, RUTAS_VUELOS)
+        b_rows = get_bus_data(token, target_date, now_str, RUTAS_FLOTA)
 
         logging.info(f"Fecha {target_date}: {len(f_rows)} vuelos, {len(b_rows)} pasajes de flota encontrados.")
 

@@ -49,6 +49,23 @@ def build_dataset():
         except Exception as exc:
             logging.warning(f"Error al leer {fids_path}: {exc}")
 
+    # Importar tarifas oficiales de referencia
+    tarifas_vuelos_list = []
+    bandas_buses_list = []
+    try:
+        try:
+            from fetch_pasajes import TARIFAS_REFERENCIA_VUELOS, BANDAS_TARIFARIAS_BUSES
+        except ImportError:
+            from update.fetch_pasajes import TARIFAS_REFERENCIA_VUELOS, BANDAS_TARIFARIAS_BUSES
+
+        tarifas_vuelos_list = [
+            {"origen_codigo": k[0], "destino_codigo": k[1], **v}
+            for k, v in TARIFAS_REFERENCIA_VUELOS.items()
+        ]
+        bandas_buses_list = BANDAS_TARIFARIAS_BUSES
+    except Exception as exc:
+        logging.warning(f"No se pudieron cargar tarifas de referencia: {exc}")
+
     dataset = {
         "metadata": {
             "total_pasajes": len(pasajes_records),
@@ -59,10 +76,12 @@ def build_dataset():
         },
         "pasajes": pasajes_records,
         "fids": fids_records,
+        "tarifas_referencia_aereas": tarifas_vuelos_list,
+        "bandas_tarifarias_terrestres": bandas_buses_list,
     }
 
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
-        json.dump(dataset, f, ensure_ascii=False)
+        json.dump(dataset, f, ensure_ascii=False, indent=2)
 
     logging.info(f"Archivo de dashboard generado en {OUTPUT_JSON} ({os.path.getsize(OUTPUT_JSON)} bytes)")
 
