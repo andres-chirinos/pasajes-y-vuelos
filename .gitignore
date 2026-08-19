@@ -18,4 +18,4 @@ venv/
 *.csv
 *.xlsx
 *.part
-docs/data_dashboard.json
+docs/*.json
