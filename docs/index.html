@@ -3,45 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Interconectividad Aérea y Terrestre - MEFP Bolivia</title>
-  <meta name="description" content="Dashboard estático de monitoreo de interconectividad de aeropuertos, pasajes de flota y vuelos en Bolivia.">
+  <title>Monitor de Interconectividad, Movilidad y Consumo Económico - MEFP Bolivia</title>
+  <meta name="description" content="Dashboard de monitoreo de interconectividad de transporte aéreo (NAABOL FIDS) y terrestre, índice de movilidad y proxy de consumo económico en Bolivia.">
   
-  <!-- Modern Fonts & Icons -->
+  <!-- Modern Typography from Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   
-  <!-- Stylesheets -->
+  <!-- Leaflet GIS Map CSS (Real Geographic Scale) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  
+  <!-- Custom Stylesheet -->
   <link rel="stylesheet" href="styles.css">
   
   <!-- Chart.js CDN for Analytics -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Leaflet GIS Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 
-  <!-- Header -->
+  <!-- Top Navigation & Ministry Branding Header -->
   <header class="app-header">
     <div class="brand">
-      <div class="brand-icon">✈️</div>
+      <div class="brand-badge">MEFP</div>
+      <div class="brand-icon">🇧🇴</div>
       <div class="brand-text">
-        <h1>Interconectividad Bolivia</h1>
-        <p>Red de Transportes: Aeropuertos (FIDS NAABOL) & Flotas Terrestres</p>
+        <div class="brand-title-wrap">
+          <h1>Monitor de Movilidad & Consumo Económico</h1>
+          <span class="version-tag">Datalake v2.4</span>
+        </div>
+        <p>Red Nacional de Transporte Aéreo (FIDS NAABOL) & Flotas Terrestres &bull; Ministerio de Economía y Finanzas Públicas</p>
       </div>
     </div>
     
-    <div class="header-status">
-      <div class="status-badge">
+    <div class="header-right">
+      <div class="status-badge" id="live-status-pill">
         <span class="status-dot"></span>
         <span id="data-updated-label">Actualizado: Cargando...</span>
       </div>
+      <button class="btn-action" id="btn-export-data" title="Descargar datos en JSON">
+        <span>💾 Exportar Datos</span>
+      </button>
     </div>
   </header>
 
-  <!-- Main Content -->
+  <!-- Main Container -->
   <main class="main-container">
 
-    <!-- Controls Bar & Date Timeline Filter -->
-    <section class="controls-bar">
+    <!-- Primary Controls & Corridors Filter Bar -->
+    <section class="controls-bar" aria-label="Filtros principales">
       <div class="filter-group">
         <div class="filter-item">
           <label for="date-filter">📅 Fecha de Análisis</label>
@@ -51,16 +64,27 @@
         </div>
         
         <div class="filter-item">
-          <label for="transport-filter">🚍 Modo Transporte</label>
+          <label for="transport-filter">🚍 Modo de Transporte</label>
           <select id="transport-filter" class="custom-select">
-            <option value="ALL">Todos los Medios</option>
-            <option value="VUELO">Vuelos Aéreos</option>
-            <option value="BUS">Flotas Terrestres</option>
+            <option value="ALL">Todos los Modos</option>
+            <option value="VUELO">✈️ Vuelos Aéreos</option>
+            <option value="BUS">🚌 Flotas Terrestres</option>
           </select>
         </div>
 
         <div class="filter-item">
-          <label for="origin-filter">📍 Ciudad / Origen</label>
+          <label for="corridor-filter">🛣️ Corredor Económico</label>
+          <select id="corridor-filter" class="custom-select">
+            <option value="ALL">Todos los Corredores</option>
+            <option value="TRONCAL">⭐ Eje Troncal (LPZ-CBB-SCZ)</option>
+            <option value="SUR">🏛️ Corredor Sur (Sucre/Tarija/Potosí/Uyuni)</option>
+            <option value="NORTE">🌴 Corredor Norte & Amazonía (Beni/Pando)</option>
+            <option value="FRONTERA">🌐 Corredor Comercial / Fronteras</option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label for="origin-filter">📍 Nodo / Origen</label>
           <select id="origin-filter" class="custom-select">
             <option value="ALL">Todos los Orígenes</option>
           </select>
@@ -70,94 +94,172 @@
           <label for="escalas-filter">🔄 Tipo de Ruta</label>
           <select id="escalas-filter" class="custom-select">
             <option value="ALL">Todas (Directo y Escalas)</option>
-            <option value="DIRECTO">Solo Vuelos/Viajes Directos</option>
-            <option value="ESCALA">Solo Con Escala(s)</option>
+            <option value="DIRECTO">Solo Directos</option>
+            <option value="ESCALA">Con Escala(s)</option>
           </select>
         </div>
       </div>
 
-      <div class="segmented-control" role="tablist">
-        <button class="segmented-btn active" data-tab="tab-network">🌐 Red & Grafo</button>
-        <button class="segmented-btn" data-tab="tab-analytics">📊 Línea de Tiempo</button>
-        <button class="segmented-btn" data-tab="tab-fids">🛫 FIDS NAABOL</button>
-        <button class="segmented-btn" data-tab="tab-table">📋 Tabla General</button>
-      </div>
+      <!-- Segmented Navigation Tabs -->
+      <nav class="segmented-control" role="tablist" aria-label="Secciones del Dashboard">
+        <button class="segmented-btn active" data-tab="tab-map" role="tab" aria-selected="true">
+          <span class="tab-icon">🗺️</span> Mapa Real & Flujos
+        </button>
+        <button class="segmented-btn" data-tab="tab-economy" role="tab" aria-selected="false">
+          <span class="tab-icon">📊</span> Índice & Proxy Consumo
+        </button>
+        <button class="segmented-btn" data-tab="tab-tariffs" role="tab" aria-selected="false">
+          <span class="tab-icon">🏷️</span> Monitor Precios vs Techos
+        </button>
+        <button class="segmented-btn" data-tab="tab-fids" role="tab" aria-selected="false">
+          <span class="tab-icon">🛫</span> NAABOL FIDS en Vivo
+        </button>
+        <button class="segmented-btn" data-tab="tab-table" role="tab" aria-selected="false">
+          <span class="tab-icon">📋</span> Explorador Consolidado
+        </button>
+      </nav>
     </section>
 
-    <!-- KPI Summary Grid -->
-    <section class="kpi-grid">
-      <div class="kpi-card" style="--card-accent: var(--accent-blue);">
-        <div class="kpi-header">
-          <span class="kpi-title">Total Frecuencias / Salidas</span>
-          <span class="kpi-icon">🔄</span>
-        </div>
-        <div class="kpi-value" id="kpi-total-ops">0</div>
-        <div class="kpi-subtext" id="kpi-total-sub">Vuelos y flotas consolidados</div>
-      </div>
-
+    <!-- Macro Indicators / KPI Executive Grid -->
+    <section class="kpi-grid" aria-label="Indicadores Macro de Movilidad">
+      <!-- KPI 1: Mobility Index -->
       <div class="kpi-card" style="--card-accent: var(--accent-cyan);">
         <div class="kpi-header">
-          <span class="kpi-title">Operaciones FIDS NAABOL</span>
-          <span class="kpi-icon">✈️</span>
+          <span class="kpi-title">Índice General de Movilidad</span>
+          <span class="kpi-icon">⚡</span>
         </div>
-        <div class="kpi-value" id="kpi-fids-count">0</div>
-        <div class="kpi-subtext">8 aeropuertos monitoreados</div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-mobility-index">100.0</div>
+          <span class="kpi-badge badge-cyan" id="kpi-mobility-grade">Nivel Alto</span>
+        </div>
+        <div class="kpi-subtext" id="kpi-mobility-sub">Dinamismo interdepartamental</div>
       </div>
 
-      <div class="kpi-card" style="--card-accent: var(--accent-amber);">
+      <!-- KPI 2: Total Operations & Passenger Flow -->
+      <div class="kpi-card" style="--card-accent: var(--accent-blue);">
         <div class="kpi-header">
-          <span class="kpi-title">Salidas de Flotas</span>
-          <span class="kpi-icon">🚌</span>
+          <span class="kpi-title">Operaciones / Frecuencias</span>
+          <span class="kpi-icon">🔄</span>
         </div>
-        <div class="kpi-value" id="kpi-bus-count">0</div>
-        <div class="kpi-subtext">Rutas interdepartamentales</div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-total-ops">0</div>
+          <span class="kpi-badge badge-blue" id="kpi-pax-est">0 pax est.</span>
+        </div>
+        <div class="kpi-subtext" id="kpi-ops-breakdown">0 vuelos &bull; 0 flotas</div>
       </div>
 
+      <!-- KPI 3: Economic Expenditure Proxy -->
       <div class="kpi-card" style="--card-accent: var(--accent-emerald);">
         <div class="kpi-header">
-          <span class="kpi-title">Tarifa Prom. Vuelo</span>
-          <span class="kpi-icon">💵</span>
+          <span class="kpi-title">Proxy Consumo Económico</span>
+          <span class="kpi-icon">💳</span>
         </div>
-        <div class="kpi-value" id="kpi-avg-flight-price">Bs. 0</div>
-        <div class="kpi-subtext">Precio promedio pasaje aéreo</div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-economic-spend">Bs. 0.00 M</div>
+          <span class="kpi-badge badge-emerald">Gasto Movilidad</span>
+        </div>
+        <div class="kpi-subtext">Estimación de gasto en pasajes</div>
       </div>
 
-      <div class="kpi-card" style="--card-accent: var(--accent-purple);">
+      <!-- KPI 4: Air Average Ticket vs TMR -->
+      <div class="kpi-card" style="--card-accent: var(--accent-indigo);">
         <div class="kpi-header">
-          <span class="kpi-title">Tarifa Prom. Flota</span>
-          <span class="kpi-icon">🏷️</span>
+          <span class="kpi-title">Tarifa Media Vuelos</span>
+          <span class="kpi-icon">✈️</span>
         </div>
-        <div class="kpi-value" id="kpi-avg-bus-price">Bs. 0</div>
-        <div class="kpi-subtext">Precio promedio flota terrestre</div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-avg-flight-price">Bs. 0</div>
+          <span class="kpi-badge badge-indigo" id="kpi-flight-tmr-diff">-</span>
+        </div>
+        <div class="kpi-subtext">Respecto a TMR + DUA oficial</div>
+      </div>
+
+      <!-- KPI 5: Terrestrial Average Ticket vs ATT -->
+      <div class="kpi-card" style="--card-accent: var(--accent-amber);">
+        <div class="kpi-header">
+          <span class="kpi-title">Tarifa Media Flotas</span>
+          <span class="kpi-icon">🚌</span>
+        </div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-avg-bus-price">Bs. 0</div>
+          <span class="kpi-badge badge-amber" id="kpi-bus-att-diff">-</span>
+        </div>
+        <div class="kpi-subtext">Respecto a Banda Tarifaria ATT</div>
       </div>
     </section>
 
-    <!-- Tab 1: Red de Interconectividad (Mapa Interactivo) -->
-    <div id="tab-network" class="tab-content">
+    <!-- ============================================================= -->
+    <!-- TAB 1: Real Geospatial GIS Map & Corridor Network             -->
+    <!-- ============================================================= -->
+    <div id="tab-map" class="tab-content">
       <div class="dashboard-grid">
-        <div class="panel-card">
+        
+        <!-- Interactive Real-Scale Map Container -->
+        <div class="panel-card map-panel">
           <div class="panel-header">
-            <h2 class="panel-title">🗺️ Mapa de Interconectividad de Bolivia</h2>
-            <span class="badge badge-vuelo" id="nodes-count-badge">0 Nodos Conectados</span>
+            <div class="panel-header-title">
+              <h2 class="panel-title">🗺️ Mapa Geográfico de Interconectividad de Bolivia</h2>
+              <p class="panel-subtitle">Escala cartográfica real con grosor de flujo ponderado por frecuencia y dinamismo económico</p>
+            </div>
+            <div class="map-controls-toolbar">
+              <div class="layer-toggle-group">
+                <button class="layer-btn active" data-layer="all">🌐 Todo</button>
+                <button class="layer-btn" data-layer="vuelo">✈️ Solo Vuelos</button>
+                <button class="layer-btn" data-layer="bus">🚌 Solo Flotas</button>
+              </div>
+              <span class="badge badge-node-count" id="map-nodes-badge">18 Nodos Activos</span>
+            </div>
           </div>
-          <div class="network-container" id="network-canvas-container">
-            <canvas id="network-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+
+          <!-- Leaflet GIS Map Element -->
+          <div class="gis-map-wrapper">
+            <div id="leaflet-map" class="leaflet-container-custom"></div>
+            
+            <!-- Map Overlay Legend & Mobility Scale -->
+            <div class="map-overlay-legend">
+              <div class="legend-title">Leyenda de Conectividad</div>
+              <div class="legend-item">
+                <span class="legend-line line-flight"></span>
+                <span>Ruta Aérea (Frecuencia FIDS/Amadeus)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-line line-bus"></span>
+                <span>Ruta Terrestre (Salidas Interdepartamentales)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot dot-hub"></span>
+                <span>Hub Principal Eje Troncal (LPB/VVI/CBB)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot dot-regional"></span>
+                <span>Nodo Departamental / Fronterizo</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="panel-card">
+        <!-- High Flow Corridors & Mobility Highlights -->
+        <div class="panel-card side-corridors-panel">
           <div class="panel-header">
-            <h2 class="panel-title">⭐ Rutas con Mayor Flujo</h2>
+            <div class="panel-header-title">
+              <h2 class="panel-title">🚀 Corredores con Mayor Movilidad</h2>
+              <p class="panel-subtitle">Rutas de mayor densidad de viajes y valor económico</p>
+            </div>
           </div>
-          <div class="table-responsive">
+          
+          <div class="corridors-list" id="top-corridors-container">
+            <!-- Dynamically populated top corridors -->
+          </div>
+
+          <div class="table-responsive" style="margin-top: 1rem;">
             <table class="custom-table" id="top-routes-table">
               <thead>
                 <tr>
-                  <th>Origen</th>
-                  <th>Destino</th>
-                  <th>Tipo</th>
+                  <th>Origen ➔ Destino</th>
+                  <th>Modo</th>
                   <th>Frec.</th>
-                  <th>Precio Bs.</th>
+                  <th>Tarifa Media</th>
+                  <th>Índice Flujo</th>
                 </tr>
               </thead>
               <tbody id="top-routes-tbody">
@@ -166,95 +268,211 @@
             </table>
           </div>
         </div>
+
       </div>
     </div>
 
-    <!-- Tab 2: Línea de Tiempo & Analítica de Tarifas -->
-    <div id="tab-analytics" class="tab-content" style="display: none;">
+    <!-- ============================================================= -->
+    <!-- TAB 2: Mobility Index & Economic Consumption Analytics        -->
+    <!-- ============================================================= -->
+    <div id="tab-economy" class="tab-content" style="display: none;">
       <div class="dashboard-grid">
+        
+        <!-- Chart 1: Economic Mobility Spend by Corridor -->
         <div class="panel-card">
           <div class="panel-header">
-            <h2 class="panel-title">📈 Línea de Tiempo: Salidas por Día</h2>
+            <div class="panel-header-title">
+              <h2 class="panel-title">💰 Gasto Estimado en Transporte por Corredor Económico</h2>
+              <p class="panel-subtitle">Proxy de volumen de consumo y demanda agregada en Bs.</p>
+            </div>
           </div>
           <div class="chart-wrapper">
-            <canvas id="timeline-chart"></canvas>
+            <canvas id="chart-corridor-spend"></canvas>
           </div>
         </div>
 
+        <!-- Chart 2: Modal Share (Vuelos vs Buses) -->
         <div class="panel-card">
           <div class="panel-header">
-            <h2 class="panel-title">💰 Comparativa de Precios (BOB)</h2>
+            <div class="panel-header-title">
+              <h2 class="panel-title">⚖️ Participación Modal en Frecuencias y Flujo</h2>
+              <p class="panel-subtitle">Distribución entre transporte aéreo y flota terrestre</p>
+            </div>
           </div>
           <div class="chart-wrapper">
-            <canvas id="prices-chart"></canvas>
+            <canvas id="chart-modal-share"></canvas>
           </div>
         </div>
 
+        <!-- Chart 3: Daily Mobility Timeline -->
         <div class="panel-card" style="grid-column: 1 / -1;">
           <div class="panel-header">
-            <h2 class="panel-title">🏢 Participación por Empresa / Aerolínea</h2>
+            <div class="panel-header-title">
+              <h2 class="panel-title">📈 Evolución Temporal del Índice de Movilidad Diaria</h2>
+              <p class="panel-subtitle">Seguimiento de salidas y frecuencias proyectadas por fecha</p>
+            </div>
           </div>
-          <div class="chart-wrapper" style="height: 280px;">
-            <canvas id="carriers-chart"></canvas>
+          <div class="chart-wrapper" style="height: 290px;">
+            <canvas id="chart-mobility-timeline"></canvas>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Tab 3: Operaciones FIDS NAABOL -->
-    <div id="tab-fids" class="tab-content" style="display: none;">
-      <div class="dashboard-grid">
+        <!-- Departamental Mobility Ranking Table -->
         <div class="panel-card" style="grid-column: 1 / -1;">
           <div class="panel-header">
-            <h2 class="panel-title">🛫 Estado de Vuelos en Tiempo Real (NAABOL FIDS)</h2>
-            <input type="text" id="fids-search" class="custom-input" placeholder="🔍 Buscar por vuelo, aerolínea o ruta...">
+            <div class="panel-header-title">
+              <h2 class="panel-title">🏛️ Matriz de Conectividad & Dinamismo por Departamento</h2>
+              <p class="panel-subtitle">Ranking departamental de origen y destino de viajes</p>
+            </div>
           </div>
           <div class="table-responsive">
-            <table class="custom-table">
+            <table class="custom-table" id="departamentos-ranking-table">
               <thead>
                 <tr>
-                  <th>Aeropuerto</th>
-                  <th>Operación</th>
-                  <th>Nro. Vuelo</th>
-                  <th>Aerolínea</th>
-                  <th>Ruta</th>
-                  <th>Hora Prog.</th>
-                  <th>Hora Real</th>
-                  <th>Puerta</th>
-                  <th>Estado</th>
+                  <th>Departamento / Ciudad</th>
+                  <th>Salidas Aéreas</th>
+                  <th>Salidas Flotas</th>
+                  <th>Total Frecuencias</th>
+                  <th>Flujo Pasajeros Est.</th>
+                  <th>Gasto Movilidad Est. (BOB)</th>
+                  <th>Índice Dinamismo</th>
                 </tr>
               </thead>
-              <tbody id="fids-table-tbody">
-                <!-- FIDS records rendered via JS -->
+              <tbody id="departamentos-ranking-tbody">
+                <!-- Departamental ranking rows rendered via JS -->
               </tbody>
             </table>
           </div>
         </div>
+
       </div>
     </div>
 
-    <!-- Tab 4: Tabla General Pasajes -->
+    <!-- ============================================================= -->
+    <!-- TAB 3: Price Monitor & ATT / TMR Regulatory Benchmarking      -->
+    <!-- ============================================================= -->
+    <div id="tab-tariffs" class="tab-content" style="display: none;">
+      <div class="dashboard-grid">
+        
+        <!-- Air Tariffs Regulation Table -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-header-title">
+              <h2 class="panel-title">✈️ Monitoreo de Tarifas Aéreas vs TMR + DUA</h2>
+              <p class="panel-subtitle">Tarifas Máximas de Referencia oficiales (DGAC / NAABOL)</p>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="custom-table" id="table-air-tmr">
+              <thead>
+                <tr>
+                  <th>Ruta Aérea</th>
+                  <th>TMR (Bs.)</th>
+                  <th>DUA (Bs.)</th>
+                  <th>Techo Oficial</th>
+                  <th>Tarifa Prom. Mercado</th>
+                  <th>Estado Banda</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-air-tmr">
+                <!-- Air TMR comparison rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Terrestrial Tariffs Regulation Table -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-header-title">
+              <h2 class="panel-title">🚌 Monitoreo de Tarifas Terrestres vs Banda ATT</h2>
+              <p class="panel-subtitle">Resolución Regulatoria ATT-DJ-RAR-TR LP 32 2025</p>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="custom-table" id="table-bus-att">
+              <thead>
+                <tr>
+                  <th>Ruta Terrestre</th>
+                  <th>Normal (Min-Max)</th>
+                  <th>Semicama (Min-Max)</th>
+                  <th>Cama (Min-Max)</th>
+                  <th>Tarifa Media</th>
+                  <th>Estado Banda</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-bus-att">
+                <!-- Bus ATT comparison rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- TAB 4: Live NAABOL FIDS Flights                               -->
+    <!-- ============================================================= -->
+    <div id="tab-fids" class="tab-content" style="display: none;">
+      <div class="panel-card table-panel">
+        <div class="panel-header">
+          <div class="panel-header-title">
+            <h2 class="panel-title">🛫 Itinerarios en Tiempo Real (NAABOL FIDS)</h2>
+            <p class="panel-subtitle">Salidas y arribos de aeropuertos monitoreados en Bolivia</p>
+          </div>
+          <input type="text" id="fids-search" class="custom-input" placeholder="🔍 Filtrar vuelo, aerolínea, aeropuerto o destino...">
+        </div>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Aeropuerto</th>
+                <th>Operación</th>
+                <th>Nro. Vuelo</th>
+                <th>Aerolínea</th>
+                <th>Ruta</th>
+                <th>Hora Prog.</th>
+                <th>Hora Real</th>
+                <th>Puerta</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="fids-table-tbody">
+              <!-- FIDS records rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- TAB 5: Consolidated Pasajes & Vuelos Explorer                 -->
+    <!-- ============================================================= -->
     <div id="tab-table" class="tab-content" style="display: none;">
       <div class="panel-card table-panel">
         <div class="panel-header">
-          <h2 class="panel-title">📋 Registro Consolidado de Vuelos y Flotas</h2>
-          <input type="text" id="pasajes-search" class="custom-input" placeholder="🔍 Buscar empresa, origen, destino...">
+          <div class="panel-header-title">
+            <h2 class="panel-title">📋 Registro General de Vuelos y Flotas Terrestres</h2>
+            <p class="panel-subtitle">Base consolidada de frecuencias comerciales y pasajes</p>
+          </div>
+          <input type="text" id="pasajes-search" class="custom-input" placeholder="🔍 Buscar empresa, origen, destino, código...">
         </div>
         <div class="table-responsive">
           <table class="custom-table">
             <thead>
               <tr>
                 <th>Fecha Salida</th>
-                <th>Tipo</th>
+                <th>Modo</th>
                 <th>Origen</th>
                 <th>Destino</th>
-                <th>Empresa / Aerolínea</th>
-                <th>Cod. Vuelo / Bus</th>
+                <th>Empresa / Línea</th>
+                <th>Nro. Vuelo/Bus</th>
                 <th>Hora Salida</th>
                 <th>Hora Llegada</th>
-                <th>Escalas / Duración</th>
-                <th>Precio (BOB)</th>
-                <th>Rango Precio</th>
+                <th>Categoría</th>
+                <th>Duración</th>
+                <th>Tarifa (BOB)</th>
               </tr>
             </thead>
             <tbody id="pasajes-table-tbody">
@@ -262,17 +480,29 @@
             </tbody>
           </table>
         </div>
+        <div class="table-pagination-bar" id="pasajes-pagination">
+          <!-- Pagination controls -->
+        </div>
       </div>
     </div>
 
   </main>
 
+  <!-- Application Footer -->
   <footer class="app-footer">
-    <p>Ministerio de Economía y Finanzas Públicas (MEFP) &bull; Datalake & Analytics Node</p>
-    <p>Actualización automática cada 4 horas vía GitHub Actions & AIStor / CKAN Datalake</p>
+    <div class="footer-content">
+      <div class="footer-left">
+        <strong>Ministerio de Economía y Finanzas Públicas (MEFP)</strong>
+        <p>Unidad de Información y Estadísticas (UIE) &bull; Datalake & Analytics Node</p>
+      </div>
+      <div class="footer-right">
+        <p>Fuentes: NAABOL FIDS &bull; Pasajes Amadeus &bull; ATT Banda Tarifaria &bull; DGAC TMR</p>
+        <p>Sincronización automatizada continua vía Datalake AIStor & CKAN</p>
+      </div>
+    </div>
   </footer>
 
-  <!-- Main Dashboard Script -->
+  <!-- Main Modular Engine Script -->
   <script src="app.js"></script>
 </body>
 </html>
