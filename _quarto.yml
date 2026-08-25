@@ -1,0 +1,23 @@
+project:
+  type: website
+  output-dir: _site
+  resources:
+    - data/
+
+website:
+  title: "Vuelos y Pasajes de Bolivia"
+  navbar:
+    left:
+      - href: index.qmd
+        text: "Dashboard"
+      - href: https://www.kaggle.com/datasets/sociest/transporte
+        icon: database
+        text: "Kaggle"
+      - href: https://github.com/mefp-uie/vuelos
+        icon: github
+        text: "GitHub"
+
+format:
+  dashboard:
+    scrolling: true
+    theme: cosmo

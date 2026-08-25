@@ -1,0 +1,450 @@
+---
+title: "Monitor de Vuelos y Pasajes - Bolivia"
+format: 
+  dashboard:
+    scrolling: true
+    theme: cosmo
+    nav-buttons:
+      - icon: database
+        href: https://www.kaggle.com/datasets/sociest/transporte
+        aria-label: Kaggle Dataset
+        text: "Kaggle Dataset"
+      - icon: github
+        href: https://github.com/mefp-uie/vuelos
+        aria-label: GitHub
+---
+
+```{ojs}
+//| output: false
+// 1. Carga de datos condensados y optimizados
+kpis = FileAttachment("data/condensed_kpis.json").json()
+rawPasajes = FileAttachment("data/condensed_pasajes_activos.csv").csv({typed: true})
+rawResumenRutas = FileAttachment("data/condensed_resumen_rutas.csv").csv({typed: true})
+rawFids = FileAttachment("data/condensed_fids_activos.csv").csv({typed: true})
+
+// Normalización de pasajes activos
+pasajesData = rawPasajes.map(d => {
+  const precio = +d.precio_bob || 0;
+  const precioMin = +d.precio_minimo_bob || precio;
+  const origen = (d.origen_nombre || "").toString().trim().toUpperCase();
+  const destino = (d.destino_nombre || "").toString().trim().toUpperCase();
+  const tipo = (d.tipo_transporte || "").toString().trim().toUpperCase();
+  const empresa = (d.empresa_aerolinea || "").toString().trim();
+  const ruta = `${origen} ➔ ${destino}`;
+
+  return {
+    ...d,
+    tipo_transporte: tipo,
+    origen_nombre: origen,
+    destino_nombre: destino,
+    empresa_aerolinea: empresa,
+    ruta: ruta,
+    precio_bob: precio,
+    precio_minimo_bob: precioMin,
+    categoria_cabina: (d.categoria_cabina || "").toString().trim() || "Estándar"
+  };
+}).filter(d => d.origen_nombre && d.destino_nombre)
+
+// Normalización de resumen agregado de rutas
+rutasData = rawResumenRutas.map(d => {
+  return {
+    ...d,
+    precio_min: +d.precio_min || 0,
+    precio_avg: +d.precio_avg || 0,
+    precio_max: +d.precio_max || 0,
+    total_ofertas: +d.total_ofertas || 0
+  };
+})
+
+// Normalización de FIDS
+fidsData = rawFids.map(d => {
+  const aero = (d.AEROPUERTO || "").toString().trim();
+  const tipoOp = (d.TIPO_OPERACION || "").toString().trim().toUpperCase() === "S" ? "Salida" : "Llegada";
+  const aerolinea = (d.NOMBRE_AEROLINEA || "").toString().trim();
+  const obs = (d.OBSERVACION || "").toString().trim() || "Normal";
+  
+  return {
+    ...d,
+    AEROPUERTO: aero,
+    tipo_operacion_lbl: tipoOp,
+    NOMBRE_AEROLINEA: aerolinea,
+    OBSERVACION: obs
+  };
+}).filter(d => d.AEROPUERTO)
+
+// Listas únicas para filtros
+tiposTransporte = ["Todos", "VUELO", "BUS"]
+origenesList = ["Todos"].concat(Array.from(new Set(pasajesData.map(d => d.origen_nombre))).sort())
+destinosList = ["Todos"].concat(Array.from(new Set(pasajesData.map(d => d.destino_nombre))).sort())
+empresasList = ["Todas"].concat(Array.from(new Set(pasajesData.map(d => d.empresa_aerolinea))).filter(Boolean).sort())
+aeropuertosFidsList = ["Todos"].concat(Array.from(new Set(fidsData.map(d => d.AEROPUERTO))).sort())
+
+maxPrecioPosible = d3.max(pasajesData, d => d.precio_bob) || 2000
+```
+
+## Column {.sidebar}
+
+**Filtros de Búsqueda**  
+Explore pasajes y salidas en tiempo real.
+
+```{ojs}
+viewof selectedTipo = Inputs.select(tiposTransporte, {label: "Tipo:", value: "Todos"})
+viewof selectedOrigen = Inputs.select(origenesList, {label: "Origen:", value: "Todos"})
+viewof selectedDestino = Inputs.select(destinosList, {label: "Destino:", value: "Todos"})
+viewof selectedEmpresa = Inputs.select(empresasList, {label: "Empresa:", value: "Todas"})
+viewof maxPrecioFiltro = Inputs.range([0, Math.max(100, maxPrecioPosible)], {
+  label: "Precio Máx. (BOB):", 
+  step: 10, 
+  value: maxPrecioPosible
+})
+viewof searchFiltro = Inputs.text({label: "Buscar:", placeholder: "Empresa, ruta o código..."})
+```
+
+---
+
+<small class="text-muted">
+  <b>Última actualización:</b><br/>
+  ${kpis.generado_el || "Reciente"}<br/>
+  <b>Histórico Kaggle:</b> ${kpis.total_historico_pasajes || 0} registros
+</small>
+
+```{ojs}
+//| output: false
+// Filtrado reactivo en memoria ultrarrápido
+filteredPasajes = pasajesData.filter(d => {
+  const matchTipo = selectedTipo === "Todos" || d.tipo_transporte === selectedTipo;
+  const matchOrigen = selectedOrigen === "Todos" || d.origen_nombre === selectedOrigen;
+  const matchDestino = selectedDestino === "Todos" || d.destino_nombre === selectedDestino;
+  const matchEmpresa = selectedEmpresa === "Todas" || d.empresa_aerolinea === selectedEmpresa;
+  const matchPrecio = d.precio_bob <= maxPrecioFiltro;
+  
+  let matchSearch = true;
+  if (searchFiltro && searchFiltro.trim() !== "") {
+    const q = searchFiltro.toLowerCase();
+    matchSearch = (
+      (d.empresa_aerolinea && d.empresa_aerolinea.toLowerCase().includes(q)) ||
+      (d.ruta && d.ruta.toLowerCase().includes(q)) ||
+      (d.numero_vuelo_bus && d.numero_vuelo_bus.toString().toLowerCase().includes(q))
+    );
+  }
+
+  return matchTipo && matchOrigen && matchDestino && matchEmpresa && matchPrecio && matchSearch;
+})
+
+filteredRutas = rutasData.filter(d => {
+  const matchTipo = selectedTipo === "Todos" || d.tipo_transporte === selectedTipo;
+  const matchOrigen = selectedOrigen === "Todos" || d.origen_nombre === selectedOrigen;
+  const matchDestino = selectedDestino === "Todos" || d.destino_nombre === selectedDestino;
+  const matchEmpresa = selectedEmpresa === "Todas" || d.empresa_aerolinea === selectedEmpresa;
+  return matchTipo && matchOrigen && matchDestino && matchEmpresa;
+})
+
+avgPrecio = filteredPasajes.length ? d3.mean(filteredPasajes.filter(d => d.precio_bob > 0), d => d.precio_bob) || 0 : 0
+minPrecio = filteredPasajes.length ? d3.min(filteredPasajes.filter(d => d.precio_bob > 0), d => d.precio_bob) || 0 : 0
+```
+
+## Column
+
+### Row {height=18%}
+
+```{ojs}
+//| component: valuebox
+//| title: Salidas Activas
+//| icon: ticket-perforated
+//| color: primary
+filteredPasajes.length
+```
+
+```{ojs}
+//| component: valuebox
+//| title: Vuelos en Aeropuertos (FIDS)
+//| icon: airplane-engines
+//| color: info
+fidsData.length
+```
+
+```{ojs}
+//| component: valuebox
+//| title: Tarifa Promedio (BOB)
+//| icon: cash-coin
+//| color: secondary
+filteredPasajes.length ? `Bs. ${avgPrecio.toFixed(0)}` : "N/A"
+```
+
+```{ojs}
+//| component: valuebox
+//| title: Tarifa Mínima (BOB)
+//| icon: tag
+//| color: success
+filteredPasajes.length && minPrecio > 0 ? `Bs. ${minPrecio.toFixed(0)}` : "N/A"
+```
+
+### Row {.tabset}
+
+#### Disponibilidad Activa
+
+```{ojs}
+//| title: Tarifas Promedio por Empresa
+Plot.plot({
+  marginLeft: 180,
+  marginRight: 40,
+  x: { label: "Precio Promedio (Bs.)", grid: true },
+  y: { label: null },
+  color: {
+    domain: ["VUELO", "BUS"],
+    range: ["#0d6efd", "#198754"],
+    legend: true
+  },
+  marks: [
+    Plot.barX(filteredPasajes.filter(d => d.precio_bob > 0), Plot.groupY(
+      { x: "mean" },
+      {
+        y: "empresa_aerolinea",
+        fill: "tipo_transporte",
+        sort: { y: "x", reverse: true, limit: 15 }
+      }
+    )),
+    Plot.text(filteredPasajes.filter(d => d.precio_bob > 0), Plot.groupY(
+      { x: "mean", text: d => `Bs. ${d3.mean(d, x => x.precio_bob).toFixed(0)}` },
+      {
+        y: "empresa_aerolinea",
+        textAnchor: "start",
+        dx: 6,
+        sort: { y: "x", reverse: true, limit: 15 }
+      }
+    ))
+  ]
+})
+```
+
+```{ojs}
+//| title: Tabla de Salidas Activas
+Inputs.table(filteredPasajes, {
+  columns: [
+    "tipo_transporte",
+    "empresa_aerolinea",
+    "origen_nombre",
+    "destino_nombre",
+    "fecha_salida",
+    "fecha_hora_salida",
+    "categoria_cabina",
+    "precio_bob"
+  ],
+  header: {
+    tipo_transporte: "Tipo",
+    empresa_aerolinea: "Empresa",
+    origen_nombre: "Origen",
+    destino_nombre: "Destino",
+    fecha_salida: "Fecha",
+    fecha_hora_salida: "Hora Salida",
+    categoria_cabina: "Categoría",
+    precio_bob: "Precio (Bs.)"
+  },
+  format: {
+    precio_bob: d => d ? `Bs. ${(+d).toFixed(2)}` : "Consultar"
+  },
+  rows: 15,
+  sort: "fecha_salida"
+})
+```
+
+#### Matriz de Tarifas por Ruta
+
+```{ojs}
+//| title: Rango Tarifario por Ruta Agregada (Mín, Promedio, Máx)
+Plot.plot({
+  marginLeft: 180,
+  marginRight: 40,
+  x: { label: "Tarifa (Bs.)", grid: true },
+  y: { label: null },
+  color: {
+    domain: ["VUELO", "BUS"],
+    range: ["#0d6efd", "#198754"],
+    legend: true
+  },
+  marks: [
+    Plot.link(filteredRutas, {
+      x1: "precio_min",
+      x2: "precio_max",
+      y: "ruta",
+      stroke: "tipo_transporte",
+      strokeWidth: 2,
+      sort: { y: "x1", limit: 15 }
+    }),
+    Plot.dot(filteredRutas, {
+      x: "precio_avg",
+      y: "ruta",
+      fill: "tipo_transporte",
+      r: 5,
+      title: d => `${d.empresa_aerolinea}\n${d.ruta}\nPromedio: Bs. ${d.precio_avg}\nRango: Bs. ${d.precio_min} - Bs. ${d.precio_max}`
+    })
+  ]
+})
+```
+
+```{ojs}
+//| title: Matriz Condensada de Rutas y Tarifas
+Inputs.table(filteredRutas, {
+  columns: [
+    "tipo_transporte",
+    "ruta",
+    "empresa_aerolinea",
+    "categoria_cabina",
+    "precio_min",
+    "precio_avg",
+    "precio_max",
+    "total_ofertas"
+  ],
+  header: {
+    tipo_transporte: "Tipo",
+    ruta: "Ruta",
+    empresa_aerolinea: "Empresa",
+    categoria_cabina: "Cabina",
+    precio_min: "Mín (Bs.)",
+    precio_avg: "Prom (Bs.)",
+    precio_max: "Máx (Bs.)",
+    total_ofertas: "Total Ofertas"
+  },
+  rows: 15,
+  sort: "precio_min"
+})
+```
+
+#### Vuelos FIDS NAABOL
+
+```{ojs}
+viewof selectedAeroFids = Inputs.select(aeropuertosFidsList, {label: "Filtrar por Aeropuerto:", value: "Todos"})
+```
+
+```{ojs}
+//| output: false
+filteredFids = fidsData.filter(d => {
+  return selectedAeroFids === "Todos" || d.AEROPUERTO === selectedAeroFids;
+})
+```
+
+```{ojs}
+//| title: Vuelos en Aeropuertos (Salidas vs Llegadas)
+Plot.plot({
+  marginLeft: 150,
+  x: { label: "Cantidad de Vuelos", grid: true },
+  y: { label: null },
+  color: {
+    domain: ["Salida", "Llegada"],
+    range: ["#0d6efd", "#ffc107"],
+    legend: true
+  },
+  marks: [
+    Plot.barX(filteredFids, Plot.groupY(
+      { x: "count" },
+      { y: "AEROPUERTO", fill: "tipo_operacion_lbl", sort: { y: "x", reverse: true } }
+    )),
+    Plot.text(filteredFids, Plot.groupY(
+      { x: "count", text: "count" },
+      { y: "AEROPUERTO", textAnchor: "start", dx: 4, sort: { y: "x", reverse: true } }
+    ))
+  ]
+})
+```
+
+```{ojs}
+//| title: Tabla de Operaciones FIDS NAABOL
+Inputs.table(filteredFids, {
+  columns: [
+    "AEROPUERTO",
+    "tipo_operacion_lbl",
+    "FECHA_HORA_FORMAT",
+    "NRO_VUELO",
+    "NOMBRE_AEROLINEA",
+    "RUTA0",
+    "HORA_ESTIMADA",
+    "HORA_REAL",
+    "OBSERVACION"
+  ],
+  header: {
+    AEROPUERTO: "Aeropuerto",
+    tipo_operacion_lbl: "Operación",
+    FECHA_HORA_FORMAT: "Fecha / Hora",
+    NRO_VUELO: "Vuelo",
+    NOMBRE_AEROLINEA: "Aerolínea",
+    RUTA0: "Ruta",
+    HORA_ESTIMADA: "Estimada",
+    HORA_REAL: "Real",
+    OBSERVACION: "Estado"
+  },
+  rows: 15,
+  sort: "FECHA_HORA_FORMAT"
+})
+```
+
+#### Conectividad y Red Nacional
+
+```{ojs}
+//| title: Nodos y Terminales de Bolivia
+ciudadesGeo = [
+  { nombre: "LA PAZ / EL ALTO", lat: -16.513, lon: -68.192, iata: "LPB" },
+  { nombre: "SANTA CRUZ", lat: -17.644, lon: -63.135, iata: "VVI" },
+  { nombre: "COCHABAMBA", lat: -17.421, lon: -66.177, iata: "CBB" },
+  { nombre: "SUCRE", lat: -19.267, lon: -65.143, iata: "SRE" },
+  { nombre: "TARIJA", lat: -21.555, lon: -64.704, iata: "TJA" },
+  { nombre: "TRINIDAD", lat: -14.819, lon: -64.918, iata: "TDD" },
+  { nombre: "ORURO", lat: -17.962, lon: -67.076, iata: "ORU" },
+  { nombre: "POTOSI", lat: -19.543, lon: -65.723, iata: "POI" },
+  { nombre: "COBIJA", lat: -11.040, lon: -68.782, iata: "CIJ" },
+  { nombre: "UYUNI", lat: -20.450, lon: -66.836, iata: "UYU" },
+  { nombre: "RIBERALTA", lat: -10.999, lon: -66.074, iata: "RIB" },
+  { nombre: "GUAYARAMERIN", lat: -10.820, lon: -65.346, iata: "GYA" },
+  { nombre: "YACUIBA", lat: -21.961, lon: -63.652, iata: "BYC" },
+  { nombre: "VILLAZON", lat: -22.091, lon: -65.596, iata: "VIL" }
+]
+
+mapContainer = {
+  const div = document.createElement("div");
+  div.style.height = "520px";
+  div.style.width = "100%";
+  div.style.borderRadius = "8px";
+  div.style.zIndex = "1";
+  
+  const map = L.map(div).setView([-16.5, -64.5], 5);
+  
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: "© OpenStreetMap contributors © CARTO"
+  }).addTo(map);
+  
+  ciudadesGeo.forEach(c => {
+    const origenesCount = filteredPasajes.filter(p => p.origen_nombre.includes(c.nombre.split("/")[0].trim())).length;
+    const fidsCount = fidsData.filter(f => f.AEROPUERTO.toUpperCase().includes(c.nombre.split("/")[0].trim())).length;
+    
+    const popupContent = `
+      <div style="font-family: sans-serif; font-size: 13px;">
+        <h6 style="margin: 0 0 5px 0; font-weight: bold; color: #0d6efd;">${c.nombre} (${c.iata})</h6>
+        <b>Salidas activas:</b> ${origenesCount}<br/>
+        <b>Operaciones FIDS:</b> ${fidsCount}
+      </div>
+    `;
+
+    L.circleMarker([c.lat, c.lon], {
+      radius: Math.max(7, Math.min(22, 7 + Math.sqrt(origenesCount + fidsCount))),
+      fillColor: "#0d6efd",
+      color: "#ffffff",
+      weight: 2,
+      fillOpacity: 0.75
+    }).bindPopup(popupContent).addTo(map);
+  });
+  
+  invalidation.then(() => map.remove());
+  return div;
+}
+```
+
+```{ojs}
+//| output: false
+L = {
+  const L = await require("leaflet@1.9.4");
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+  document.head.appendChild(link);
+  return L;
+}
+```

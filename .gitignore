@@ -14,8 +14,17 @@ venv/
 *.har
 
 # Extracted data files and temporary files
+data/*
+!data/.gitkeep
 *.parquet
 *.csv
 *.xlsx
 *.part
 docs/*.json
+
+# Quarto build outputs
+/.quarto/
+/_site/
+**/*.quarto_ipynb
+dashboard.html
+dashboard_files/

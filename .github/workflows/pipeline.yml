@@ -1,0 +1,71 @@
+name: ETL Kaggle & Publish Dashboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0,12 * * *"
+  push:
+    branches:
+      - main
+      - public
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  ejecutar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configurar Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+
+      - name: Extracción de datos
+        run: |
+          mkdir -p data
+          python scripts/fetch_fids_naabol.py --format csv,parquet --data-dir data
+          python scripts/fetch_pasajes.py --format csv,parquet --data-dir data
+
+      - name: Condensar datos para Dashboard
+        run: |
+          python scripts/condense_data.py
+
+      - name: Subida a Kaggle
+        if: env.KAGGLE_API_TOKEN != ''
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          python scripts/upload_kaggle.py \
+            --input-dir data \
+            --kaggle-id sociest/transporte \
+            --version-message "Automatic Upload $(date -u +%Y-%m-%d)"
+
+      - name: Compilar Dashboard Quarto
+        run: |
+          quarto render
+
+      - name: Publicar Dashboard en GitHub Pages
+        uses: quarto-dev/quarto-actions/publish@v2
+        with:
+          target: gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

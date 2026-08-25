@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import logging
 import os
 import sys
@@ -14,22 +15,14 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
-# Configurar sys.path para mefp_datos
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
-ROOT_DIR = PROJECT_DIR.parent
-if str(ROOT_DIR / "mefp_datos") not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR / "mefp_datos"))
-
-try:
-    import mefp_datos
-    from mefp_datos.ckan import descargar_recurso, sincronizar_datapackage
-except ImportError:
-    mefp_datos = None
-    sincronizar_datapackage = None
-    descargar_recurso = None
 
 AUTH_URL = "https://tsag.transclicksolutions.com/uaa/client"
 CITIES_URL = "https://tsag.transclicksolutions.com/sl/api/v1/cities"
@@ -37,7 +30,6 @@ FLIGHTS_URL = "https://tsag.transclicksolutions.com/amadeus/api/flights/merge?us
 BUS_URL = "https://tsag.transclicksolutions.com/sl/api/v1/departures"
 BUS_WINDOWS_URL = "https://tsag.transclicksolutions.com/sl/api/v1/departures/windows"
 
-RUTA_SALIDA = Path("/tmp")
 MAX_FETCH_ATTEMPTS = 3
 REQUEST_DELAY = 0.3  # Pausa en segundos para evitar rate limits
 REQUEST_TIMEOUT = 30  # Timeout en segundos para requests HTTP
@@ -352,18 +344,16 @@ def get_bus_data(token, target_date, now_str, rutas_flota):
     return rows
 
 
-def get_all_pasajes_data(now):
+def get_all_pasajes_data(now, days_ahead: int = 3):
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
     token = obtener_token()
     if not token:
         return pd.DataFrame(columns=COLUMNAS_ORDEN)
 
     logging.info(f"Rutas predefinidas: {len(RUTAS_VUELOS)} rutas de vuelo y {len(RUTAS_FLOTA)} rutas de flota terrestre.")
-
     all_rows = []
 
-    # Consultar para los próximos 3 días
-    for day_offset in range(3):
+    for day_offset in range(days_ahead):
         target_date = (now + timedelta(days=day_offset)).strftime("%Y-%m-%d")
         logging.info(f"Consultando pasajes para la fecha {target_date}...")
 
@@ -371,7 +361,6 @@ def get_all_pasajes_data(now):
         b_rows = get_bus_data(token, target_date, now_str, RUTAS_FLOTA)
 
         logging.info(f"Fecha {target_date}: {len(f_rows)} vuelos, {len(b_rows)} pasajes de flota encontrados.")
-
         all_rows.extend(f_rows)
         all_rows.extend(b_rows)
 
@@ -395,49 +384,33 @@ def format_columns(df):
         if col in ["precio_bob", "precio_max_bob", "precio_minimo_bob"]:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
         else:
-            df[col] = df[col].astype(str).str.strip().replace(["nan", "None"], "")
+            df[col] = df[col].astype(str).str.strip().replace(["nan", "None", "<NA>"], "")
 
     cols = [c for c in COLUMNAS_ORDEN if c in df.columns]
     return df[cols]
 
 
-def consolidate(df):
+def consolidate(df, data_dir: Path):
     logging.info("Consolidando eventos de pasajes y vuelos...")
     oldf = pd.DataFrame(columns=COLUMNAS_ORDEN)
 
-    # Intentar descargar versión previa desde CKAN
-    if descargar_recurso:
-        try:
-            ruta_guardado = RUTA_SALIDA / "vuelos_pasajes_guardado.parquet"
-            descargar_recurso(
-                "vuelos",
-                "vuelos_pasajes.parquet",
-                path=ruta_guardado,
-                sobrescribir=True,
-            )
-            if ruta_guardado.exists():
-                oldf = pd.read_parquet(ruta_guardado)
-        except Exception as exc:
-            logging.info(f"No se pudo descargar recurso previo desde CKAN: {exc}")
+    candidates = [
+        data_dir / "vuelos_pasajes.parquet",
+        PROJECT_DIR / "vuelos_pasajes.parquet",
+        data_dir / "vuelos_pasajes.csv",
+    ]
 
-    # Fallback a AIStor o local parquet/csv
-    if oldf.empty and mefp_datos and hasattr(mefp_datos, "aistor"):
-        try:
-            ruta_base = mefp_datos.aistor.repo_prefix()
-            reporte_ruta = ruta_base + "/vuelos_pasajes.parquet"
-            if mefp_datos.aistor.existe_objeto(reporte_ruta):
-                tmp_aistor_path = RUTA_SALIDA / "aistor_vuelos_pasajes.parquet"
-                mefp_datos.aistor.descargar_objeto(reporte_ruta, tmp_aistor_path)
-                oldf = pd.read_parquet(tmp_aistor_path)
-        except Exception as exc:
-            logging.warning(f"No se pudo consultar AIStor: {exc}")
-
-    local_parquet = PROJECT_DIR / "vuelos_pasajes.parquet"
-    if oldf.empty and local_parquet.exists():
-        try:
-            oldf = pd.read_parquet(local_parquet)
-        except Exception:
-            pass
+    for cand in candidates:
+        if cand.exists() and oldf.empty:
+            try:
+                if cand.suffix == ".parquet":
+                    oldf = pd.read_parquet(cand)
+                elif cand.suffix == ".csv":
+                    oldf = pd.read_csv(cand)
+                logging.info(f"Datos previos cargados desde {cand} ({len(oldf)} filas)")
+                break
+            except Exception as exc:
+                logging.warning(f"No se pudo leer archivo previo {cand}: {exc}")
 
     oldf = format_columns(oldf)
     df = format_columns(df)
@@ -462,73 +435,107 @@ def consolidate(df):
     return format_columns(finaldf)
 
 
-def metadata_tabla(tabla):
-    timestamps = pd.to_datetime(tabla["fecha_hora_salida"], errors="coerce").dropna()
-    if timestamps.empty:
-        timestamps = pd.to_datetime(tabla["fecha_consulta"], errors="coerce").dropna()
-    return {
-        "fecha_minima": timestamps.min().isoformat() if not timestamps.empty else "",
-        "fecha_maxima": timestamps.max().isoformat() if not timestamps.empty else "",
-        "filas": int(tabla.shape[0]),
-    }
+def save_dataframe(df, base_filename, data_dir: Path, execution_id: str, output_formats: list[str]):
+    if df.empty:
+        logging.info(f"No hay datos para guardar en {base_filename}")
+        return
+
+    for fmt in output_formats:
+        fmt = fmt.strip().lower()
+        filename = f"{base_filename}_{execution_id}.{fmt}" if execution_id else f"{base_filename}.{fmt}"
+        filepath = data_dir / filename
+
+        if fmt == "csv":
+            df.to_csv(filepath, index=False, encoding="utf-8")
+        elif fmt == "parquet":
+            df.columns = df.columns.astype(str)
+            df.to_parquet(filepath, index=False)
+        elif fmt in ["xlsx", "excel"]:
+            df.to_excel(filepath, index=False, columns=[c for c in COLUMNAS_ORDEN if c in df.columns])
+        else:
+            logging.warning(f"Formato no soportado: {fmt}")
+            continue
+
+        logging.info(f"Guardado exitosamente: {filepath} ({len(df)} registros)")
 
 
-def actualizar():
+def actualizar(data_dir: Path = None, output_formats: list[str] = None, days_ahead: int = 3, execution_id: str = ""):
+    if data_dir is None:
+        data_dir = PROJECT_DIR / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    if output_formats is None:
+        output_formats = ["parquet", "csv"]
+
     now = datetime.now(timezone(timedelta(hours=-4)))
-    data = get_all_pasajes_data(now)
-    tabla = consolidate(data)
+    data = get_all_pasajes_data(now, days_ahead=days_ahead)
+    tabla = consolidate(data, data_dir)
 
-    ruta_salida_parquet = RUTA_SALIDA / "vuelos_pasajes.parquet"
-    tabla.to_parquet(ruta_salida_parquet, index=False)
-
-    excel_path = RUTA_SALIDA / "vuelos_pasajes.xlsx"
-    tabla.to_excel(
-        excel_path,
-        index=False,
-        columns=[c for c in COLUMNAS_ORDEN if c in tabla.columns],
+    save_dataframe(
+        df=tabla,
+        base_filename="vuelos_pasajes",
+        data_dir=data_dir,
+        execution_id=execution_id,
+        output_formats=output_formats,
     )
 
-    # Actualizar dataset JSON para el dashboard estático si está presente
+    # Actualizar dataset JSON para el dashboard estático si el módulo existe
     try:
         from build_dashboard_dataset import build_dataset
         build_dataset()
-    except Exception as exc:
-        logging.warning(f"No se pudo actualizar el dataset del dashboard: {exc}")
-
-    # Subir información a AIStor
-    if mefp_datos and hasattr(mefp_datos, "aistor"):
+    except Exception:
         try:
-            ruta_base = mefp_datos.aistor.repo_prefix()
-            reporte_ruta = ruta_base + "/vuelos_pasajes.parquet"
-            mefp_datos.aistor.subir_archivo(ruta_salida_parquet, reporte_ruta)
-            logging.info(f"Reporte parquet subido a AIStor: {reporte_ruta}")
-        except Exception as exc:
-            logging.warning(f"No se pudo subir a AIStor: {exc}")
+            from scripts.build_dashboard_dataset import build_dataset
+            build_dataset()
+        except Exception:
+            pass
 
-    metadata = metadata_tabla(tabla)
+    return tabla
 
-    return {
-        "vuelos_pasajes.parquet": {
-            "path": ruta_salida_parquet,
-            "metadata": metadata,
-        }
-    }
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Extrae pasajes aéreos y terrestres, consolida y guarda en formatos especificados."
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=PROJECT_DIR / "data",
+        help="Directorio donde guardar los datos. Default: data/",
+    )
+    parser.add_argument(
+        "--format",
+        type=str,
+        default="parquet,csv",
+        help="Formatos de salida separados por coma (csv, parquet, xlsx). Default: parquet,csv",
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=3,
+        help="Número de días a consultar. Default: 3",
+    )
+    parser.add_argument(
+        "--append-timestamp",
+        action="store_true",
+        help="Añadir marca de tiempo al nombre del archivo de salida.",
+    )
+    args = parser.parse_args()
+
+    execution_id = datetime.now().strftime("%Y%m%d_%H%M%S") if args.append_timestamp else ""
+    output_formats = [f.strip().lower() for f in args.format.split(",")]
+
+    try:
+        actualizar(
+            data_dir=args.data_dir,
+            output_formats=output_formats,
+            days_ahead=args.days,
+            execution_id=execution_id,
+        )
+        logging.info("Extracción de pasajes completada exitosamente.")
+    except Exception as exc:
+        sys.exit(f"Error al obtener o procesar pasajes y vuelos: {exc}")
 
 
 if __name__ == "__main__":
-    try:
-        archivos = actualizar()
-        datapackage_json = PROJECT_DIR / "datapackage.json"
-        if not datapackage_json.exists():
-            datapackage_json = PROJECT_DIR.parent / "datapackage.json"
-
-        if sincronizar_datapackage and datapackage_json.exists() and os.getenv("CKAN_URL"):
-            try:
-                sincronizar_datapackage(str(datapackage_json), archivos, force_update=False)
-                print("Proceso de sincronización completado.")
-            except Exception as exc:
-                logging.warning(f"No se pudo sincronizar con CKAN: {exc}")
-
-        print("Proceso completado exitosamente.")
-    except Exception as exc:
-        sys.exit(f"Error al obtener o procesar pasajes y vuelos: {exc}")
+    main()
