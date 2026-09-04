@@ -1,10 +1,10 @@
 {
-  "generado_el": "2026-09-03 23:21:19",
-  "total_historico_pasajes": 340,
-  "total_historico_fids": 21,
-  "total_pasajes_activos": 340,
-  "total_fids_activos": 21,
-  "total_rutas_unicas": 46,
-  "total_empresas": 8,
-  "precio_promedio_general": 569.6
+  "generado_el": "2026-09-04 11:58:11",
+  "total_historico_pasajes": 477,
+  "total_historico_fids": 123,
+  "total_pasajes_activos": 477,
+  "total_fids_activos": 123,
+  "total_rutas_unicas": 52,
+  "total_empresas": 12,
+  "precio_promedio_general": 369.5
 }
